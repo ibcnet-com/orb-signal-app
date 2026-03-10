@@ -1,0 +1,81 @@
+{
+  "cash": 1039732.1012878418,
+  "starting_cash": 1100000.0,
+  "positions": {
+    "AMZN": {
+      "qty": 10,
+      "avg_cost": 213.49000549316406
+    },
+    "NVDA": {
+      "qty": 100,
+      "avg_cost": 182.64999389648438
+    },
+    "TSLA": {
+      "qty": 100,
+      "avg_cost": 398.67999267578125
+    }
+  },
+  "orders": [
+    {
+      "id": "3ac704d7",
+      "timestamp": "2026-03-09 23:27:56",
+      "action": "buy",
+      "ticker": "AMZN",
+      "qty": 10,
+      "price": 213.49000549316406,
+      "total": 2134.9000549316406,
+      "commission": 0.0,
+      "type": "market",
+      "status": "filled"
+    },
+    {
+      "id": "4fcaaf34",
+      "timestamp": "2026-03-09 23:27:56",
+      "action": "buy",
+      "ticker": "AMZN",
+      "qty": 10,
+      "price": 213.49000549316406,
+      "total": 2134.9000549316406,
+      "commission": 0.0,
+      "type": "market",
+      "status": "filled"
+    },
+    {
+      "id": "64aaa3e2",
+      "timestamp": "2026-03-09 23:28:13",
+      "action": "buy",
+      "ticker": "NVDA",
+      "qty": 100,
+      "price": 182.64999389648438,
+      "total": 18264.999389648438,
+      "commission": 0.0,
+      "type": "market",
+      "status": "filled"
+    },
+    {
+      "id": "50b5ac8c",
+      "timestamp": "2026-03-09 23:28:28",
+      "action": "sell",
+      "ticker": "AMZN",
+      "qty": 10,
+      "price": 213.49000549316406,
+      "total": 2134.9000549316406,
+      "commission": 0.0,
+      "type": "market",
+      "status": "filled"
+    },
+    {
+      "id": "c77f831d",
+      "timestamp": "2026-03-09 23:28:43",
+      "action": "buy",
+      "ticker": "TSLA",
+      "qty": 100,
+      "price": 398.67999267578125,
+      "total": 39867.999267578125,
+      "commission": 0.0,
+      "type": "market",
+      "status": "filled"
+    }
+  ],
+  "pending_orders": []
+}
