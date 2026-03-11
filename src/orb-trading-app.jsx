@@ -15,25 +15,29 @@ const style = `
   }
   .header {
     border-bottom: 1px solid #1e2a3a;
-    padding: 18px 32px;
+    padding: 14px 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     background: rgba(9,12,16,0.95);
     backdrop-filter: blur(10px);
     position: sticky; top: 0; z-index: 100;
+    overflow: hidden;
   }
   .logo {
     font-family: 'Instrument Serif', serif;
     font-size: 22px;
     letter-spacing: 0.02em;
     color: #f0f4f8;
+    flex-shrink: 0;
   }
   .logo span { color: #00d4aa; font-style: italic; }
   .ticker-bar {
-    display: flex; gap: 20px; font-size: 11px; color: #64748b;
+    display: flex; gap: 16px; font-size: 11px; color: #64748b;
+    flex-wrap: nowrap; overflow: hidden; min-width: 0;
+    align-items: center;
   }
-  .ticker-item { display: flex; gap: 6px; align-items: center; }
+  .ticker-item { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
   .ticker-item .up { color: #00d4aa; }
   .ticker-item .down { color: #ff4d6d; }
   .live-dot {
@@ -136,9 +140,16 @@ const style = `
     /* Global */
     body { padding-bottom: 72px; }
 
-    /* Hero */
-    .hero { padding: 32px 16px 24px; }
-    .hero h1 { font-size: 28px; }
+    /* Header — fix horizontal overflow */
+    .header { padding: 10px 14px; }
+    .logo { font-size: 18px; flex-shrink: 0; }
+    .ticker-bar { gap: 8px; font-size: 10px; }
+    .ticker-item:nth-child(3) { display: none; } /* hide VIX on mobile */
+
+    /* Hero — hide on non-learn tabs */
+    .hero-mobile-hide { display: none !important; }
+    .hero { padding: 24px 16px 20px; }
+    .hero h1 { font-size: 24px; }
     .hero p  { font-size: 12px; }
 
     /* Hide desktop tabs, show bottom nav */
@@ -1275,7 +1286,7 @@ export default function ORBApp() {
       </header>
 
       <main className="main">
-        <div className="hero">
+        <div className={`hero${tab !== "learn" ? " hero-mobile-hide" : ""}`}>
           <div className="hero-label">
             <span>Day Trading Intelligence</span>
           </div>
@@ -1284,7 +1295,7 @@ export default function ORBApp() {
         </div>
 
         {/* Stats */}
-        <div className="grid-3" style={{marginBottom: 32}}>
+        <div className={`grid-3${tab !== "learn" ? " hero-mobile-hide" : ""}`} style={{marginBottom: 32}}>
           <div className="stat-box">
             <span className="val">68%</span>
             <span className="lbl">Historical Win Rate</span>
@@ -1969,7 +1980,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v2.1.0
+                v2.1.1
               </a>
             </div>
           </div>
