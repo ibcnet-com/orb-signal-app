@@ -267,64 +267,199 @@ export { logTrade, closeTrade, getTrades, getStats, toCSV };
   {
     file: "server.js",
     content: `/**
- * ORBsignal Server — Yahoo Finance + Broker API + Trade Log
+ * ORBsignal - Yahoo Finance Proxy Server
+ * Run with: node server.js
  */
+
 import express from "express";
-import cors    from "cors";
-import { broker, BROKER_NAME, BROKER_MODE } from "./brokers/index.js";
-import { logTrade, closeTrade, getTrades, getStats, toCSV } from "./db/tradelog.js";
+import cors from "cors";
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
+
 app.use(cors());
 app.use(express.json());
 
-// ─── Yahoo Finance ────────────────────────────────────────────────────────────
+// ─── Health check ─────────────────────────────────────────────────────────────
+app.get("/", (req, res) => res.json({ status: "ok", service: "ORBsignal" }));
+
+// ─── FOMC / CPI / High-Impact Economic Calendar ───────────────────────────────
+// Sources: federalreserve.gov, bls.gov — updated for 2025-2026
+const HIGH_IMPACT_DATES = {
+  // FOMC Meeting dates (decision days)
+  "2025-01-29": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2025-03-19": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2025-05-07": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2025-06-18": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2025-07-30": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2025-09-17": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2025-10-29": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2025-12-10": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2026-01-28": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2026-03-18": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2026-04-29": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2026-06-17": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2026-07-29": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2026-09-16": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2026-11-04": { type: "FOMC", label: "FOMC Rate Decision" },
+  "2026-12-16": { type: "FOMC", label: "FOMC Rate Decision" },
+  // CPI release dates 2025
+  "2025-01-15": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-02-12": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-03-12": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-04-10": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-05-13": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-06-11": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-07-15": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-08-12": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-09-10": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-10-15": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-11-13": { type: "CPI", label: "CPI Inflation Report" },
+  "2025-12-10": { type: "CPI", label: "CPI Inflation Report" },
+  // CPI release dates 2026
+  "2026-01-14": { type: "CPI", label: "CPI Inflation Report" },
+  "2026-02-11": { type: "CPI", label: "CPI Inflation Report" },
+  "2026-03-11": { type: "CPI", label: "CPI Inflation Report" },
+  "2026-04-09": { type: "CPI", label: "CPI Inflation Report" },
+  "2026-05-13": { type: "CPI", label: "CPI Inflation Report" },
+  "2026-06-10": { type: "CPI", label: "CPI Inflation Report" },
+  // NFP (Jobs Report) - first Friday of each month
+  "2025-01-10": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-02-07": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-03-07": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-04-04": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-05-02": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-06-06": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-07-03": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-08-01": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-09-05": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-10-03": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-11-07": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2025-12-05": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2026-01-09": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2026-02-06": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2026-03-06": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2026-04-03": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2026-05-01": { type: "NFP", label: "Jobs Report (NFP)" },
+  "2026-06-05": { type: "NFP", label: "Jobs Report (NFP)" },
+};
+
+function checkEconomicCalendar() {
+  const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const event = HIGH_IMPACT_DATES[today];
+  return event ? { hasEvent: true, ...event } : { hasEvent: false };
+}
+
+// ─── Yahoo Finance news check ─────────────────────────────────────────────────
+async function fetchTickerNews(ticker) {
+  try {
+    const url = \`https://query1.finance.yahoo.com/v1/finance/search?q=\${ticker}&newsCount=5&enableFuzzyQuery=false\`;
+    const res  = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+    });
+    if (!res.ok) return { hasNews: false, headlines: [] };
+    const json = await res.json();
+    const news = json?.news || [];
+    // Flag if any headline contains high-impact keywords
+    const keywords = ["earnings", "fda", "sec", "lawsuit", "recall", "bankruptcy", "merger", "acquisition", "indictment", "investigation", "beat", "miss", "guidance", "downgrade", "upgrade"];
+    const flagged  = news.filter(n => keywords.some(k => n.title?.toLowerCase().includes(k)));
+    return {
+      hasNews:   flagged.length > 0,
+      headlines: flagged.slice(0, 2).map(n => n.title),
+      allCount:  news.length,
+    };
+  } catch {
+    return { hasNews: false, headlines: [] };
+  }
+}
+
 async function fetchCandles(ticker) {
   const url = \`https://query1.finance.yahoo.com/v8/finance/chart/\${ticker}?interval=1m&range=1d&includePrePost=false\`;
-  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
-  if (!res.ok) throw new Error(\`Yahoo \${res.status} for \${ticker}\`);
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+  });
+  if (!res.ok) throw new Error(\`Yahoo returned \${res.status} for \${ticker}\`);
   const json   = await res.json();
   const result = json?.chart?.result?.[0];
-  if (!result)  throw new Error(\`No data for \${ticker}\`);
+  if (!result) throw new Error(\`No data for \${ticker}\`);
   const { open, high, low, close, volume } = result.indicators.quote[0];
-  return result.timestamp.map((ts, i) => ({ time: new Date(ts * 1000), open: open[i], high: high[i], low: low[i], close: close[i], volume: volume[i] })).filter(c => c.open !== null && c.close !== null);
+  return result.timestamp.map((ts, i) => ({
+    time: new Date(ts * 1000), open: open[i], high: high[i],
+    low: low[i], close: close[i], volume: volume[i],
+  })).filter(c => c.open !== null && c.close !== null);
 }
 
 function detectORB(candles, orbMinutes = 15, volFilterPct = 150) {
   if (!candles.length) return null;
-  const marketOpen = new Date(candles[0].time); marketOpen.setSeconds(0, 0);
+  const marketOpen = new Date(candles[0].time);
+  marketOpen.setSeconds(0, 0);
   const orbEnd     = new Date(marketOpen.getTime() + orbMinutes * 60 * 1000);
   const orbCandles = candles.filter(c => c.time <= orbEnd);
   const postOrb    = candles.filter(c => c.time >  orbEnd);
   if (!orbCandles.length || !postOrb.length) return null;
-  const orbHigh   = Math.max(...orbCandles.map(c => c.high));
-  const orbLow    = Math.min(...orbCandles.map(c => c.low));
-  const avgOrbVol = orbCandles.reduce((s, c) => s + c.volume, 0) / orbCandles.length;
+  const orbHigh    = Math.max(...orbCandles.map(c => c.high));
+  const orbLow     = Math.min(...orbCandles.map(c => c.low));
+  const avgOrbVol  = orbCandles.reduce((s, c) => s + c.volume, 0) / orbCandles.length;
+
+  // ── Avoid rule: tiny ORB range < 0.2% ──────────────────────────────────────
+  const orbRangePct = ((orbHigh - orbLow) / orbLow) * 100;
+  const tinyRange   = orbRangePct < 0.2;
+
   for (const candle of postOrb) {
     const volPct = Math.round((candle.volume / avgOrbVol) * 100);
     const conf   = volPct >= 200 ? "high" : volPct >= 120 ? "med" : "low";
     const time   = candle.time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
     if (candle.close > orbHigh && volPct >= volFilterPct)
-      return { dir: "long",  orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), price: +candle.close.toFixed(2), vol: \`+\${volPct}% avg\`, time, conf, reason: \`Closed above ORB high $\${orbHigh.toFixed(2)} with \${volPct}% avg vol\` };
+      return { dir: "long",  orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +candle.close.toFixed(2), vol: \`+\${volPct}% avg\`, time, conf, reason: \`Closed above ORB high $\${orbHigh.toFixed(2)} with \${volPct}% avg vol\` };
     if (candle.close < orbLow  && volPct >= volFilterPct)
-      return { dir: "short", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), price: +candle.close.toFixed(2), vol: \`+\${volPct}% avg\`, time, conf, reason: \`Closed below ORB low $\${orbLow.toFixed(2)} with \${volPct}% avg vol\` };
+      return { dir: "short", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +candle.close.toFixed(2), vol: \`+\${volPct}% avg\`, time, conf, reason: \`Closed below ORB low $\${orbLow.toFixed(2)} with \${volPct}% avg vol\` };
   }
   const latest = candles[candles.length - 1];
-  return { dir: "none", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), price: +latest.close.toFixed(2), vol: "—", time: latest.time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }), conf: "low", reason: \`No breakout yet. Range: $\${orbLow.toFixed(2)} – $\${orbHigh.toFixed(2)}\` };
+  return { dir: "none", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +latest.close.toFixed(2), vol: "—", time: latest.time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }), conf: "low", reason: \`No breakout yet. Range: $\${orbLow.toFixed(2)} – $\${orbHigh.toFixed(2)}\` };
 }
 
-// ─── Market data routes ───────────────────────────────────────────────────────
+// ── SPY trend helper ──────────────────────────────────────────────────────────
+async function getSpyTrend() {
+  try {
+    const candles = await fetchCandles("SPY");
+    if (candles.length < 2) return { trend: "unknown", spyChange: null };
+    const open  = candles[0].open;
+    const last  = candles[candles.length - 1].close;
+    const chg   = ((last - open) / open) * 100;
+    const trend = chg > 0.3 ? "up" : chg < -0.3 ? "down" : "sideways";
+    return { trend, spyChange: +chg.toFixed(2) };
+  } catch {
+    return { trend: "unknown", spyChange: null };
+  }
+}
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
 app.get("/scan", async (req, res) => {
   const tickers   = (req.query.tickers || "SPY,QQQ").split(",").map(t => t.trim().toUpperCase());
   const orbWindow = parseInt(req.query.orbWindow) || 15;
   const volFilter = parseInt(req.query.volFilter) || 150;
-  const results   = await Promise.allSettled(tickers.map(async ticker => ({ ticker, ...detectORB(await fetchCandles(ticker), orbWindow, volFilter) })));
+
+  const [results, spyTrend, economicEvent] = await Promise.all([
+    Promise.allSettled(
+      tickers.map(async ticker => {
+        const [candles, news] = await Promise.all([
+          fetchCandles(ticker),
+          fetchTickerNews(ticker),
+        ]);
+        return { ticker, news, ...detectORB(candles, orbWindow, volFilter) };
+      })
+    ),
+    getSpyTrend(),
+    Promise.resolve(checkEconomicCalendar()),
+  ]);
+
   res.json({
-    signals:    results.filter(r => r.status === "fulfilled" && r.value.dir !== "none").map((r, i) => ({ id: Date.now() + i, ...r.value })),
-    noBreakout: results.filter(r => r.status === "fulfilled" && r.value.dir === "none").map((r, i) => ({ id: Date.now() + 1000 + i, ...r.value })),
-    errors:     results.filter(r => r.status === "rejected").map(r => r.reason?.message),
-    scannedAt:  new Date().toISOString(),
+    signals:       results.filter(r => r.status === "fulfilled" && r.value.dir !== "none").map((r, i) => ({ id: Date.now() + i, ...r.value })),
+    noBreakout:    results.filter(r => r.status === "fulfilled" && r.value.dir === "none").map((r, i) => ({ id: Date.now() + 1000 + i, ...r.value })),
+    errors:        results.filter(r => r.status === "rejected").map(r => r.reason?.message),
+    spyTrend,
+    economicEvent,
+    scannedAt:     new Date().toISOString(),
   });
 });
 
@@ -333,74 +468,23 @@ app.get("/quote", async (req, res) => {
   const results = await Promise.allSettled(tickers.map(async ticker => {
     const candles = await fetchCandles(ticker);
     if (!candles.length) return { ticker, price: null, change: null };
-    const latest = candles[candles.length - 1], prev = candles[candles.length - 2] ?? candles[0];
+    const latest = candles[candles.length - 1];
+    const prev   = candles[candles.length - 2] ?? candles[0];
     return { ticker, price: +latest.close.toFixed(2), change: +(((latest.close - prev.close) / prev.close) * 100).toFixed(2) };
   }));
   res.json({ quotes: results.filter(r => r.status === "fulfilled").map(r => r.value) });
 });
 
-// ─── Trade log routes ─────────────────────────────────────────────────────────
-
-// POST /trades — log a new trade signal
-app.post("/trades", (req, res) => {
-  try {
-    const id = logTrade(req.body);
-    res.json({ success: true, id });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// PATCH /trades/:id — close a trade with outcome
-app.patch("/trades/:id", (req, res) => {
-  try {
-    const { exit_price, outcome } = req.body;
-    if (!exit_price || !outcome) return res.status(400).json({ error: "exit_price and outcome required" });
-    const trade = closeTrade(parseInt(req.params.id), exit_price, outcome);
-    if (!trade) return res.status(404).json({ error: "Trade not found" });
-    res.json({ success: true, trade });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// GET /trades — get trade history
-app.get("/trades", (req, res) => {
-  try {
-    const trades = getTrades(parseInt(req.query.limit) || 100);
-    const stats  = getStats();
-    res.json({ trades, stats });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// GET /trades/export — download as CSV
-app.get("/trades/export", (req, res) => {
-  try {
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", \`attachment; filename="tradelog-\${new Date().toISOString().slice(0,10)}.csv"\`);
-    res.send(toCSV());
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// ─── Broker routes ────────────────────────────────────────────────────────────
-app.get("/broker",    (req, res) => res.json({ broker: BROKER_NAME, mode: BROKER_MODE }));
-app.get("/account",   async (req, res) => { try { res.json({ account:   await broker.getAccount()   }); } catch (e) { res.status(500).json({ error: e.message }); } });
-app.get("/positions", async (req, res) => { try { res.json({ positions: await broker.getPositions() }); } catch (e) { res.status(500).json({ error: e.message }); } });
-app.get("/orders",    async (req, res) => { try { res.json({ orders:    await broker.getOrders(req.query.status||"all", req.query.limit||20) }); } catch (e) { res.status(500).json({ error: e.message }); } });
-
-app.post("/trade", async (req, res) => {
-  try {
-    const { symbol, qty, side, type, tif, limitPrice, stopPrice } = req.body;
-    if (!symbol || !qty || !side) return res.status(400).json({ error: "symbol, qty and side required" });
-    const order = await broker.placeOrder({ symbol, qty, side, type, tif, limitPrice, stopPrice });
-    res.json({ order, broker: BROKER_NAME, mode: BROKER_MODE });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete("/order/:id", async (req, res) => {
-  try { res.json(await broker.cancelOrder(req.params.id)); }
-  catch (e) { res.status(500).json({ error: e.message }); }
-});
+// Trade log stubs — will be replaced when SQLite is added back
+app.post("/trades",         (req, res) => res.json({ success: true, id: Date.now() }));
+app.patch("/trades/:id",    (req, res) => res.json({ success: true }));
+app.get("/trades",          (req, res) => res.json({ trades: [], stats: { total:0, wins:0, losses:0, winRate:0, totalPnl:0, avgPnl:0 } }));
+app.get("/trades/export",   (req, res) => { res.setHeader("Content-Type","text/csv"); res.send("id,ticker\n"); });
 
 app.listen(PORT, () => {
-  console.log(\`\\n✅ ORBsignal server running at http://localhost:\${PORT}\`);
-  console.log(\`   Broker: \${BROKER_NAME} (\${BROKER_MODE} mode)\\n\`);
+  console.log(\`\n✅ ORBsignal server running on port \${PORT}\`);
+  console.log(\`   /scan  → ORB breakout detection\`);
+  console.log(\`   /quote → Live prices\n\`);
 });
 `
   },
@@ -841,6 +925,41 @@ const style = \`
 
   .ticker-chip-input:focus { border-color: #00d4aa !important; }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .app-footer {
+    border-top: 1px solid #1e2a3a;
+    padding: 28px 32px;
+    margin-top: 48px;
+    background: rgba(9,12,16,0.95);
+  }
+  .footer-inner {
+    max-width: 1100px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .footer-nav {
+    display: flex; gap: 24px; flex-wrap: wrap;
+  }
+  .footer-nav a {
+    font-size: 11px; color: #475569;
+    text-decoration: none; letter-spacing: 0.08em;
+    transition: color 0.2s;
+  }
+  .footer-nav a:hover { color: #00d4aa; }
+  .footer-bottom {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .footer-copy {
+    font-size: 10px; color: #2a3a55;
+  }
+  .footer-copy a { color: #2a3a55; text-decoration: none; transition: color 0.2s; }
+  .footer-copy a:hover { color: #475569; }
+  .footer-version a {
+    font-size: 10px; color: #2a3a55;
+    text-decoration: none; transition: color 0.2s;
+    font-family: 'Space Mono', monospace;
+  }
+  .footer-version a:hover { color: #00d4aa; }
 \`;
 
 // --- ORB Chart SVG ---
@@ -964,7 +1083,8 @@ export default function ORBApp() {
   const [tab, setTab] = useState("learn");
   const [signals, setSignals] = useState([]);
   const [noBreakout, setNoBreakout] = useState([]);
-  const [spyTrend, setSpyTrend] = useState(null);
+  const [spyTrend, setSpyTrend]         = useState(null);
+  const [economicEvent, setEconomicEvent] = useState(null);
   const [quotes, setQuotes] = useState({});
   const [scanning, setScanning] = useState(false);
   const [lastScanned, setLastScanned] = useState(null);
@@ -980,9 +1100,10 @@ export default function ORBApp() {
   const [simResult, setSimResult] = useState(null);
   const [simLoading, setSimLoading] = useState(false);
   const [newSignalFlash, setNewSignalFlash] = useState(false);
-  const timerRef       = useRef(null);
-  const audioCtxRef    = useRef(null);
-  const alertedTickers = useRef(new Set()); // tickers we've already sounded an alert for
+  const timerRef        = useRef(null);
+  const audioCtxRef     = useRef(null);
+  const alertedTickers  = useRef(new Set()); // tickers we've already sounded an alert for
+  const signalFireTimes = useRef({});         // ticker -> timestamp when signal first appeared
 
   // ─── Sound engine (Web Audio API — no files needed) ──────────────────────
   function getAudioCtx() {
@@ -1092,12 +1213,16 @@ export default function ORBApp() {
       const data = await r.json();
       setSignals(data.signals || []);
       setNoBreakout(data.noBreakout || []);
-      if (data.spyTrend) setSpyTrend(data.spyTrend);
+      if (data.spyTrend)      setSpyTrend(data.spyTrend);
+      if (data.economicEvent) setEconomicEvent(data.economicEvent);
       setLastScanned(new Date().toLocaleTimeString());
       // Only alert for tickers we haven't seen before this session
       const newTickers = (data.signals || []).filter(s => !alertedTickers.current.has(s.ticker));
       if (newTickers.length > 0) {
-        newTickers.forEach(s => alertedTickers.current.add(s.ticker));
+        newTickers.forEach(s => {
+          alertedTickers.current.add(s.ticker);
+          signalFireTimes.current[s.ticker] = Date.now(); // record when it first fired
+        });
         setNewSignalFlash(true);
         setTimeout(() => setNewSignalFlash(false), 1200);
         playSignalAlert();
@@ -1165,7 +1290,8 @@ export default function ORBApp() {
 
   // Auto-scan on mount and every 60 seconds
   useEffect(() => {
-    alertedTickers.current.clear(); // reset alerts when settings change
+    alertedTickers.current.clear();
+    signalFireTimes.current = {}; // reset fire times on new scan session
     fetchQuotes();
     runScan();
     fetchTradeLog();
@@ -1225,19 +1351,20 @@ export default function ORBApp() {
 
   function SignalCard({ s, idx }) {
     const [elapsed, setElapsed] = useState("");
-    const firedAt = useRef(Date.now());
+    // Use the persistent fire time from parent — survives re-renders across scans
+    const firedAt = signalFireTimes.current[s.ticker] || Date.now();
 
     useEffect(() => {
       const update = () => {
-        const secs = Math.floor((Date.now() - firedAt.current) / 1000);
-        if (secs < 60)       setElapsed(\`\${secs}s ago\`);
+        const secs = Math.floor((Date.now() - firedAt) / 1000);
+        if (secs < 60)        setElapsed(\`\${secs}s ago\`);
         else if (secs < 3600) setElapsed(\`\${Math.floor(secs/60)}m \${secs%60}s ago\`);
         else                  setElapsed(\`\${Math.floor(secs/3600)}h ago\`);
       };
       update();
       const int = setInterval(update, 1000);
       return () => clearInterval(int);
-    }, []);
+    }, [firedAt]);
 
     const t  = calcTrade(s);
     const now = new Date();
@@ -1318,6 +1445,25 @@ export default function ORBApp() {
             color: late ? "#ff4d6d" : "#00d4aa"}}>
             {late ? "⚠ Entry after 11 AM" : "✓ Entry window open"}
           </span>
+          {economicEvent?.hasEvent && (
+            <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+              background:"rgba(250,204,21,0.08)", border:"1px solid #facc1544", color:"#facc15"}}>
+              ⚠ {economicEvent.label}
+            </span>
+          )}
+          {s.news?.hasNews && (
+            <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+              background:"rgba(255,77,109,0.08)", border:"1px solid #ff4d6d44", color:"#ff4d6d"}}
+              title={s.news.headlines?.join(" | ")}>
+              ⚠ Major news — hover to see
+            </span>
+          )}
+          {s.news && !s.news.hasNews && (
+            <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+              background:"rgba(0,212,170,0.08)", border:"1px solid #00d4aa33", color:"#00d4aa"}}>
+              ✓ No major news
+            </span>
+          )}
         </div>
         <div className="signal-footer">
           <div>
@@ -1536,6 +1682,18 @@ export default function ORBApp() {
                 <div style={{background:"rgba(255,77,109,0.08)", border:"1px solid #ff4d6d33",
                   borderRadius:8, padding:"12px 16px", marginBottom:16, fontSize:11, color:"#ff4d6d"}}>
                   ⚠ {scanError}
+                </div>
+              )}
+
+              {economicEvent?.hasEvent && (
+                <div style={{background:"rgba(250,204,21,0.06)", border:"1px solid #facc1544",
+                  borderRadius:8, padding:"12px 16px", marginBottom:16, fontSize:11, color:"#facc15",
+                  display:"flex", alignItems:"center", gap:8}}>
+                  <span style={{fontSize:16}}>⚠</span>
+                  <div>
+                    <strong>{economicEvent.label} today</strong>
+                    <span style={{color:"#94a3b8", marginLeft:8}}>— High volatility expected. ORB signals less reliable.</span>
+                  </div>
                 </div>
               )}
 
@@ -1830,6 +1988,27 @@ export default function ORBApp() {
           </div>
         )}
       </main>
+
+      <footer className="app-footer">
+        <div className="footer-inner">
+          <nav className="footer-nav">
+            <a href="#" onClick={e => { e.preventDefault(); setTab("learn"); window.scrollTo(0,0); }}>📖 How It Works</a>
+            <a href="#" onClick={e => { e.preventDefault(); setTab("signals"); window.scrollTo(0,0); }}>⚡ Live Signals</a>
+            <a href="#" onClick={e => { e.preventDefault(); setTab("tradelog"); fetchTradeLog(); window.scrollTo(0,0); }}>📋 Trade Log</a>
+            <a href="#" onClick={e => { e.preventDefault(); setTab("configure"); window.scrollTo(0,0); }}>⚙️ Alert Config</a>
+          </nav>
+          <div className="footer-bottom">
+            <div className="footer-copy">
+              © {new Date().getFullYear()} <a href="https://ibcnet.com" target="_blank" rel="noopener noreferrer">IBCnet</a>. All rights reserved.
+            </div>
+            <div className="footer-version">
+              <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
+                v1.6.0
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

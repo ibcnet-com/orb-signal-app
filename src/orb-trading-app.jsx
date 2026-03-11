@@ -390,6 +390,41 @@ const style = `
 
   .ticker-chip-input:focus { border-color: #00d4aa !important; }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .app-footer {
+    border-top: 1px solid #1e2a3a;
+    padding: 28px 32px;
+    margin-top: 48px;
+    background: rgba(9,12,16,0.95);
+  }
+  .footer-inner {
+    max-width: 1100px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .footer-nav {
+    display: flex; gap: 24px; flex-wrap: wrap;
+  }
+  .footer-nav a {
+    font-size: 11px; color: #475569;
+    text-decoration: none; letter-spacing: 0.08em;
+    transition: color 0.2s;
+  }
+  .footer-nav a:hover { color: #00d4aa; }
+  .footer-bottom {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .footer-copy {
+    font-size: 10px; color: #2a3a55;
+  }
+  .footer-copy a { color: #2a3a55; text-decoration: none; transition: color 0.2s; }
+  .footer-copy a:hover { color: #475569; }
+  .footer-version a {
+    font-size: 10px; color: #2a3a55;
+    text-decoration: none; transition: color 0.2s;
+    font-family: 'Space Mono', monospace;
+  }
+  .footer-version a:hover { color: #00d4aa; }
 `;
 
 // --- ORB Chart SVG ---
@@ -513,7 +548,8 @@ export default function ORBApp() {
   const [tab, setTab] = useState("learn");
   const [signals, setSignals] = useState([]);
   const [noBreakout, setNoBreakout] = useState([]);
-  const [spyTrend, setSpyTrend] = useState(null);
+  const [spyTrend, setSpyTrend]         = useState(null);
+  const [economicEvent, setEconomicEvent] = useState(null);
   const [quotes, setQuotes] = useState({});
   const [scanning, setScanning] = useState(false);
   const [lastScanned, setLastScanned] = useState(null);
@@ -529,9 +565,10 @@ export default function ORBApp() {
   const [simResult, setSimResult] = useState(null);
   const [simLoading, setSimLoading] = useState(false);
   const [newSignalFlash, setNewSignalFlash] = useState(false);
-  const timerRef       = useRef(null);
-  const audioCtxRef    = useRef(null);
-  const alertedTickers = useRef(new Set()); // tickers we've already sounded an alert for
+  const timerRef        = useRef(null);
+  const audioCtxRef     = useRef(null);
+  const alertedTickers  = useRef(new Set()); // tickers we've already sounded an alert for
+  const signalFireTimes = useRef({});         // ticker -> timestamp when signal first appeared
 
   // ─── Sound engine (Web Audio API — no files needed) ──────────────────────
   function getAudioCtx() {
@@ -641,12 +678,16 @@ export default function ORBApp() {
       const data = await r.json();
       setSignals(data.signals || []);
       setNoBreakout(data.noBreakout || []);
-      if (data.spyTrend) setSpyTrend(data.spyTrend);
+      if (data.spyTrend)      setSpyTrend(data.spyTrend);
+      if (data.economicEvent) setEconomicEvent(data.economicEvent);
       setLastScanned(new Date().toLocaleTimeString());
       // Only alert for tickers we haven't seen before this session
       const newTickers = (data.signals || []).filter(s => !alertedTickers.current.has(s.ticker));
       if (newTickers.length > 0) {
-        newTickers.forEach(s => alertedTickers.current.add(s.ticker));
+        newTickers.forEach(s => {
+          alertedTickers.current.add(s.ticker);
+          signalFireTimes.current[s.ticker] = Date.now(); // record when it first fired
+        });
         setNewSignalFlash(true);
         setTimeout(() => setNewSignalFlash(false), 1200);
         playSignalAlert();
@@ -714,7 +755,8 @@ export default function ORBApp() {
 
   // Auto-scan on mount and every 60 seconds
   useEffect(() => {
-    alertedTickers.current.clear(); // reset alerts when settings change
+    alertedTickers.current.clear();
+    signalFireTimes.current = {}; // reset fire times on new scan session
     fetchQuotes();
     runScan();
     fetchTradeLog();
@@ -774,19 +816,20 @@ export default function ORBApp() {
 
   function SignalCard({ s, idx }) {
     const [elapsed, setElapsed] = useState("");
-    const firedAt = useRef(Date.now());
+    // Use the persistent fire time from parent — survives re-renders across scans
+    const firedAt = signalFireTimes.current[s.ticker] || Date.now();
 
     useEffect(() => {
       const update = () => {
-        const secs = Math.floor((Date.now() - firedAt.current) / 1000);
-        if (secs < 60)       setElapsed(`${secs}s ago`);
+        const secs = Math.floor((Date.now() - firedAt) / 1000);
+        if (secs < 60)        setElapsed(`${secs}s ago`);
         else if (secs < 3600) setElapsed(`${Math.floor(secs/60)}m ${secs%60}s ago`);
         else                  setElapsed(`${Math.floor(secs/3600)}h ago`);
       };
       update();
       const int = setInterval(update, 1000);
       return () => clearInterval(int);
-    }, []);
+    }, [firedAt]);
 
     const t  = calcTrade(s);
     const now = new Date();
@@ -867,6 +910,25 @@ export default function ORBApp() {
             color: late ? "#ff4d6d" : "#00d4aa"}}>
             {late ? "⚠ Entry after 11 AM" : "✓ Entry window open"}
           </span>
+          {economicEvent?.hasEvent && (
+            <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+              background:"rgba(250,204,21,0.08)", border:"1px solid #facc1544", color:"#facc15"}}>
+              ⚠ {economicEvent.label}
+            </span>
+          )}
+          {s.news?.hasNews && (
+            <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+              background:"rgba(255,77,109,0.08)", border:"1px solid #ff4d6d44", color:"#ff4d6d"}}
+              title={s.news.headlines?.join(" | ")}>
+              ⚠ Major news — hover to see
+            </span>
+          )}
+          {s.news && !s.news.hasNews && (
+            <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+              background:"rgba(0,212,170,0.08)", border:"1px solid #00d4aa33", color:"#00d4aa"}}>
+              ✓ No major news
+            </span>
+          )}
         </div>
         <div className="signal-footer">
           <div>
@@ -1085,6 +1147,18 @@ export default function ORBApp() {
                 <div style={{background:"rgba(255,77,109,0.08)", border:"1px solid #ff4d6d33",
                   borderRadius:8, padding:"12px 16px", marginBottom:16, fontSize:11, color:"#ff4d6d"}}>
                   ⚠ {scanError}
+                </div>
+              )}
+
+              {economicEvent?.hasEvent && (
+                <div style={{background:"rgba(250,204,21,0.06)", border:"1px solid #facc1544",
+                  borderRadius:8, padding:"12px 16px", marginBottom:16, fontSize:11, color:"#facc15",
+                  display:"flex", alignItems:"center", gap:8}}>
+                  <span style={{fontSize:16}}>⚠</span>
+                  <div>
+                    <strong>{economicEvent.label} today</strong>
+                    <span style={{color:"#94a3b8", marginLeft:8}}>— High volatility expected. ORB signals less reliable.</span>
+                  </div>
                 </div>
               )}
 
@@ -1379,6 +1453,27 @@ export default function ORBApp() {
           </div>
         )}
       </main>
+
+      <footer className="app-footer">
+        <div className="footer-inner">
+          <nav className="footer-nav">
+            <a href="#" onClick={e => { e.preventDefault(); setTab("learn"); window.scrollTo(0,0); }}>📖 How It Works</a>
+            <a href="#" onClick={e => { e.preventDefault(); setTab("signals"); window.scrollTo(0,0); }}>⚡ Live Signals</a>
+            <a href="#" onClick={e => { e.preventDefault(); setTab("tradelog"); fetchTradeLog(); window.scrollTo(0,0); }}>📋 Trade Log</a>
+            <a href="#" onClick={e => { e.preventDefault(); setTab("configure"); window.scrollTo(0,0); }}>⚙️ Alert Config</a>
+          </nav>
+          <div className="footer-bottom">
+            <div className="footer-copy">
+              © {new Date().getFullYear()} <a href="https://ibcnet.com" target="_blank" rel="noopener noreferrer">IBCnet</a>. All rights reserved.
+            </div>
+            <div className="footer-version">
+              <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
+                v1.6.0
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
