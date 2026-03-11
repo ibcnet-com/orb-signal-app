@@ -164,35 +164,93 @@ const style = `
   /* Signal Alerts */
   .signal-card {
     background: #0f1520;
-    border-radius: 10px;
+    border-radius: 12px;
     border: 1px solid #1e2a3a;
-    padding: 16px 20px;
-    display: flex; align-items: center; gap: 16px;
-    margin-bottom: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
+    padding: 20px;
+    margin-bottom: 16px;
     animation: slideIn 0.4s ease both;
+    transition: border-color 0.2s;
   }
-  .signal-card:hover { border-color: #2a3a55; transform: translateX(3px); }
+  .signal-card.long  { border-left: 3px solid #00d4aa; }
+  .signal-card.short { border-left: 3px solid #ff4d6d; }
+  .signal-card:hover { border-color: #2a3a55; }
   @keyframes slideIn {
-    from { opacity:0; transform: translateX(-12px); }
-    to { opacity:1; transform: translateX(0); }
+    from { opacity:0; transform: translateY(-8px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+  .signal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .signal-ticker {
+    display: flex; align-items: center; gap: 10px;
   }
   .signal-dir {
-    width: 44px; height: 44px; border-radius: 8px;
+    width: 36px; height: 36px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px; flex-shrink: 0;
+    font-size: 16px; flex-shrink: 0;
   }
-  .signal-dir.long { background: rgba(0,212,170,0.12); border: 1px solid #00d4aa44; }
+  .signal-dir.long  { background: rgba(0,212,170,0.12); border: 1px solid #00d4aa44; }
   .signal-dir.short { background: rgba(255,77,109,0.12); border: 1px solid #ff4d6d44; }
-  .signal-info { flex: 1; }
-  .signal-info h4 { font-size: 14px; color: #f0f4f8; margin-bottom: 4px; }
-  .signal-info p { font-size: 11px; color: #64748b; }
-  .signal-meta { text-align: right; }
-  .signal-meta .price { font-size: 15px; font-weight: 700; }
-  .signal-meta .price.long { color: #00d4aa; }
-  .signal-meta .price.short { color: #ff4d6d; }
-  .signal-meta .time { font-size: 10px; color: #475569; margin-top: 3px; }
+  .signal-ticker h3 { font-size: 18px; color: #f0f4f8; }
+  .signal-ticker p  { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .signal-timer {
+    font-size: 11px; color: #475569;
+    background: #0a0f18; border: 1px solid #1e2a3a;
+    border-radius: 6px; padding: 4px 10px;
+    font-family: 'Space Mono', monospace;
+  }
+  .signal-timer.urgent { color: #facc15; border-color: #facc1544; }
+  .trade-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px; margin-bottom: 14px;
+  }
+  .trade-box {
+    background: #080b10; border: 1px solid #1a2030;
+    border-radius: 8px; padding: 10px 12px;
+  }
+  .trade-box .tb-label { font-size: 9px; color: #475569; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom:4px; }
+  .trade-box .tb-value { font-size: 14px; color: #e2e8f0; font-weight: 700; }
+  .trade-box .tb-sub   { font-size: 10px; color: #475569; margin-top: 2px; }
+  .trade-box.entry  .tb-value { color: #f0f4f8; }
+  .trade-box.stop   .tb-value { color: #ff4d6d; }
+  .trade-box.size   .tb-value { color: #facc15; }
+  .targets-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; margin-bottom: 14px;
+  }
+  .target-box {
+    background: rgba(0,212,170,0.05);
+    border: 1px solid #00d4aa22;
+    border-radius: 8px; padding: 10px 14px;
+  }
+  .target-box .t-label { font-size: 9px; color: #00d4aa88; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom:4px; }
+  .target-box .t-price { font-size: 15px; color: #00d4aa; font-weight: 700; }
+  .target-box .t-meta  { font-size: 10px; color: #475569; margin-top: 3px; }
+  .signal-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 12px; border-top: 1px solid #1a2030;
+    flex-wrap: wrap; gap: 8px;
+  }
+  .signal-footer .meta-text { font-size: 10px; color: #475569; }
+  .action-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px; font-weight: 700;
+    padding: 10px 24px; border-radius: 8px;
+    border: none; cursor: pointer;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  .action-btn.buy  { background: #00d4aa; color: #090c10; }
+  .action-btn.sell { background: #ff4d6d; color: #fff; }
+  .action-btn.buy:hover  { background: #00e8bb; transform: translateY(-1px); }
+  .action-btn.sell:hover { background: #ff6b85; transform: translateY(-1px); }
+  .time-warning {
+    font-size: 10px; color: #facc15;
+    background: rgba(250,204,21,0.08);
+    border: 1px solid #facc1533;
+    border-radius: 4px; padding: 3px 8px;
+  }
   .badge {
     font-size: 9px; letter-spacing: 0.15em;
     padding: 3px 8px; border-radius: 4px;
@@ -439,8 +497,7 @@ function ORBChart({ orbHigh = 182.5, orbLow = 179.8, breakout = true }) {
   );
 }
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
-
+const API = "http://localhost:3001";
 
 const DEFAULT_WATCHLIST = ["SPY", "QQQ", "AAPL", "TSLA"];
 
@@ -472,6 +529,56 @@ export default function ORBApp() {
   const [simLoading, setSimLoading] = useState(false);
   const [newSignalFlash, setNewSignalFlash] = useState(false);
   const timerRef = useRef(null);
+  const audioCtxRef = useRef(null);
+
+  // ─── Sound engine (Web Audio API — no files needed) ──────────────────────
+  function getAudioCtx() {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtxRef.current;
+  }
+
+  function playSignalAlert() {
+    if (!alertSound) return;
+    try {
+      const ctx = getAudioCtx();
+      const now = ctx.currentTime;
+      // Three rising tones — "opportunity knocking"
+      [[440, 0], [554, 0.15], [659, 0.30]].forEach(([freq, delay]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + delay);
+        gain.gain.setValueAtTime(0, now + delay);
+        gain.gain.linearRampToValueAtTime(0.4, now + delay + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.4);
+        osc.start(now + delay);
+        osc.stop(now + delay + 0.4);
+      });
+    } catch { }
+  }
+
+  function playWatchingChime() {
+    if (!alertSound) return;
+    try {
+      const ctx = getAudioCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(330, now);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.start(now);
+      osc.stop(now + 0.5);
+    } catch { }
+  }
 
   function addTicker() {
     const t = tickerInput.trim().toUpperCase().replace(/[^A-Z]/g, "");
@@ -536,6 +643,9 @@ export default function ORBApp() {
       if (data.signals.length > 0) {
         setNewSignalFlash(true);
         setTimeout(() => setNewSignalFlash(false), 1200);
+        playSignalAlert();
+      } else if ((data.noBreakout || []).length > 0) {
+        playWatchingChime();
       }
       if (data.errors?.length) setScanError(data.errors.join(", "));
     } catch (e) {
@@ -545,13 +655,66 @@ export default function ORBApp() {
     }
   }
 
+  // Trade log state
+  const [tradeLog, setTradeLog] = useState([]);
+  const [tradeStats, setTradeStats] = useState(null);
+  const [logLoading, setLogLoading] = useState(false);
+  const [closeModal, setCloseModal] = useState(null); // trade being closed
+  const [exitPrice, setExitPrice] = useState("");
+
+  async function fetchTradeLog() {
+    setLogLoading(true);
+    try {
+      const r = await fetch(`${API}/trades`);
+      const data = await r.json();
+      setTradeLog(data.trades || []);
+      setTradeStats(data.stats || null);
+    } catch { }
+    setLogLoading(false);
+  }
+
+  async function logSignalAsTrade(signal) {
+    try {
+      await fetch(`${API}/trades`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker: signal.ticker,
+          dir: signal.dir,
+          entry_price: signal.price,
+          confidence: signal.conf,
+          volume: signal.vol,
+          reason: signal.reason,
+          orb_high: signal.orbHigh,
+          orb_low: signal.orbLow,
+        }),
+      });
+      fetchTradeLog();
+    } catch { }
+  }
+
+  async function closeTrade(id, exit_price, outcome) {
+    try {
+      await fetch(`${API}/trades/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exit_price: parseFloat(exit_price), outcome }),
+      });
+      setCloseModal(null);
+      setExitPrice("");
+      fetchTradeLog();
+    } catch { }
+  }
+
   // Auto-scan on mount and every 60 seconds
   useEffect(() => {
     fetchQuotes();
     runScan();
+    fetchTradeLog();
     const quoteInt = setInterval(fetchQuotes, 30000);
     const scanInt = setInterval(runScan, 60000);
-    return () => { clearInterval(quoteInt); clearInterval(scanInt); };
+    const logInt = setInterval(fetchTradeLog, 60000);
+    return () => { clearInterval(quoteInt); clearInterval(scanInt); clearInterval(logInt); };
   }, [watchlist, orbWindow, volFilter]);
 
   function runSim() {
@@ -576,6 +739,123 @@ export default function ORBApp() {
 
   const confBadge = c => <span className={`badge ${c}`}>{c === "high" ? "High Conf" : c === "med" ? "Med Conf" : "Low Conf"}</span>;
 
+  const RISK = 1000; // max risk per trade in dollars
+
+  function calcTrade(s) {
+    const entry = s.price;
+    const orbRange = s.orbHigh - s.orbLow;
+    // Stop: just inside ORB level
+    const stop = s.dir === "long"
+      ? +(s.orbHigh - orbRange * 0.1).toFixed(2)
+      : +(s.orbLow + orbRange * 0.1).toFixed(2);
+    const riskPerShare = Math.abs(entry - stop);
+    const shares = riskPerShare > 0 ? Math.floor(RISK / riskPerShare) : 0;
+    // Target 1: 2:1 fixed R/R
+    const t1 = s.dir === "long"
+      ? +(entry + riskPerShare * 2).toFixed(2)
+      : +(entry - riskPerShare * 2).toFixed(2);
+    // Target 2: 2x ORB range extension
+    const t2 = s.dir === "long"
+      ? +(entry + orbRange * 2).toFixed(2)
+      : +(entry - orbRange * 2).toFixed(2);
+    const reward1 = +(Math.abs(t1 - entry) * shares).toFixed(0);
+    const reward2 = +(Math.abs(t2 - entry) * shares).toFixed(0);
+    const rr1 = riskPerShare > 0 ? (Math.abs(t1 - entry) / riskPerShare).toFixed(1) : "—";
+    const rr2 = riskPerShare > 0 ? (Math.abs(t2 - entry) / riskPerShare).toFixed(1) : "—";
+    return { entry, stop, shares, t1, t2, reward1, reward2, rr1, rr2, riskPerShare: +riskPerShare.toFixed(2) };
+  }
+
+  function SignalCard({ s, idx }) {
+    const [elapsed, setElapsed] = useState("");
+    const firedAt = useRef(Date.now());
+
+    useEffect(() => {
+      const update = () => {
+        const secs = Math.floor((Date.now() - firedAt.current) / 1000);
+        if (secs < 60) setElapsed(`${secs}s ago`);
+        else if (secs < 3600) setElapsed(`${Math.floor(secs / 60)}m ${secs % 60}s ago`);
+        else setElapsed(`${Math.floor(secs / 3600)}h ago`);
+      };
+      update();
+      const int = setInterval(update, 1000);
+      return () => clearInterval(int);
+    }, []);
+
+    const t = calcTrade(s);
+    const now = new Date();
+    const late = now.getHours() >= 11;
+    const orderType = "Market Order";
+
+    return (
+      <div className={`signal-card ${s.dir}`} key={`${s.id}-${idx}`}>
+        {/* Header */}
+        <div className="signal-header">
+          <div className="signal-ticker">
+            <div className={`signal-dir ${s.dir}`}>{s.dir === "long" ? "▲" : "▼"}</div>
+            <div>
+              <h3>{s.ticker} &nbsp; {confBadge(s.conf)}</h3>
+              <p>{s.dir === "long" ? "LONG — Buy Breakout" : "SHORT — Sell Breakout"} · {orderType}</p>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+            <span className={`signal-timer ${late ? "urgent" : ""}`}>⏱ {elapsed}</span>
+            {late && <span className="time-warning">⚠ Late entry — use caution</span>}
+          </div>
+        </div>
+
+        {/* Entry / Stop / Size */}
+        <div className="trade-grid">
+          <div className="trade-box entry">
+            <div className="tb-label">Entry Price</div>
+            <div className="tb-value">${t.entry}</div>
+            <div className="tb-sub">Market order now</div>
+          </div>
+          <div className="trade-box stop">
+            <div className="tb-label">Stop Loss</div>
+            <div className="tb-value">${t.stop}</div>
+            <div className="tb-sub">-${t.riskPerShare}/share</div>
+          </div>
+          <div className="trade-box size">
+            <div className="tb-label">Position Size</div>
+            <div className="tb-value">{t.shares} shares</div>
+            <div className="tb-sub">~$1,000 max risk</div>
+          </div>
+        </div>
+
+        {/* Targets */}
+        <div className="targets-row">
+          <div className="target-box">
+            <div className="t-label">Target 1 — 2:1 R/R</div>
+            <div className="t-price">${t.t1}</div>
+            <div className="t-meta">+${t.reward1} reward · {t.rr1}:1 R/R</div>
+          </div>
+          <div className="target-box">
+            <div className="t-label">Target 2 — 2× ORB Range</div>
+            <div className="t-price">${t.t2}</div>
+            <div className="t-meta">+${t.reward2} reward · {t.rr2}:1 R/R</div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="signal-footer">
+          <div>
+            <div className="meta-text">ORB Range: ${s.orbLow} – ${s.orbHigh} &nbsp;·&nbsp; Vol: {s.vol} &nbsp;·&nbsp; Fired: {s.time}</div>
+            <div className="meta-text" style={{ marginTop: 3 }}>{s.reason}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button className="btn btn-ghost" onClick={() => logSignalAsTrade(s)}
+              style={{ fontSize: 9, padding: "6px 12px" }}>
+              + Log
+            </button>
+            <button className={`action-btn ${s.dir === "long" ? "buy" : "sell"}`}>
+              {s.dir === "long" ? "▲ BUY" : "▼ SELL"} {s.ticker}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <style>{style}</style>
@@ -593,6 +873,11 @@ export default function ORBApp() {
             );
           })}
           <div className="ticker-item"><span className="live-dot" />LIVE</div>
+          <button onClick={() => setAlertSound(v => !v)}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: alertSound ? "#00d4aa" : "#475569" }}
+            title={alertSound ? "Mute alerts" : "Unmute alerts"}>
+            {alertSound ? "🔔" : "🔕"}
+          </button>
         </div>
       </header>
 
@@ -623,9 +908,14 @@ export default function ORBApp() {
 
         {/* Tabs */}
         <div className="tabs">
-          {["learn", "signals", "configure"].map(t => (
-            <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-              {t === "learn" ? "📖 How It Works" : t === "signals" ? <span>⚡ Live Signals {newSignalFlash ? "🟢" : ""}</span> : "⚙️ Alert Config"}
+          {[
+            { id: "learn", label: "📖 How It Works" },
+            { id: "signals", label: <span>⚡ Live Signals {newSignalFlash ? "🟢" : ""}</span> },
+            { id: "tradelog", label: "📋 Trade Log" },
+            { id: "configure", label: "⚙️ Alert Config" },
+          ].map(t => (
+            <button key={t.id} className={`tab ${tab === t.id ? "active" : ""}`} onClick={() => { setTab(t.id); if (t.id === "tradelog") fetchTradeLog(); }}>
+              {t.label}
             </button>
           ))}
         </div>
@@ -784,20 +1074,7 @@ export default function ORBApp() {
               )}
 
               {signals.map((s, idx) => (
-                <div key={`${s.id}-${idx}`} className="signal-card">
-                  <div className={`signal-dir ${s.dir}`}>
-                    {s.dir === "long" ? "▲" : "▼"}
-                  </div>
-                  <div className="signal-info">
-                    <h4>{s.ticker} &nbsp; {confBadge(s.conf)}</h4>
-                    <p>{s.reason}</p>
-                    <p style={{ marginTop: 4, color: "#475569" }}>Vol: {s.vol}</p>
-                  </div>
-                  <div className="signal-meta">
-                    <div className={`price ${s.dir}`}>${s.price}</div>
-                    <div className="time">{s.time}</div>
-                  </div>
-                </div>
+                <SignalCard key={`${s.id}-${idx}`} s={s} idx={idx} />
               ))}
 
               {noBreakout.length > 0 && (
@@ -831,6 +1108,133 @@ export default function ORBApp() {
                 <div><span className="badge low">Low Conf</span> Under 120% — caution</div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* === TRADE LOG TAB === */}
+        {tab === "tradelog" && (
+          <div>
+            {tradeStats && (
+              <div className="grid-3" style={{ marginBottom: 20 }}>
+                <div className="stat-box">
+                  <span className="val" style={{ fontSize: 24 }}>{tradeStats.winRate}%</span>
+                  <span className="lbl">Win Rate</span>
+                </div>
+                <div className="stat-box">
+                  <span className="val" style={{ fontSize: 24, color: tradeStats.totalPnl >= 0 ? "#00d4aa" : "#ff4d6d" }}>
+                    ${tradeStats.totalPnl >= 0 ? "+" : ""}{tradeStats.totalPnl}
+                  </span>
+                  <span className="lbl">Total P&L</span>
+                </div>
+                <div className="stat-box">
+                  <span className="val" style={{ fontSize: 24 }}>{tradeStats.total}</span>
+                  <span className="lbl">Total Trades ({tradeStats.wins}W / {tradeStats.losses}L)</span>
+                </div>
+              </div>
+            )}
+
+            <div className="card">
+              <div className="card-title">Trade History</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <p style={{ fontSize: 11, color: "#475569" }}>
+                  {logLoading ? "Loading..." : `${tradeLog.length} trades recorded`}
+                </p>
+                <a href={`${API}/trades/export`} target="_blank"
+                  className="btn btn-ghost" style={{ fontSize: 10, padding: "6px 12px", textDecoration: "none" }}>
+                  ⬇ Export CSV
+                </a>
+              </div>
+
+              {tradeLog.length === 0 && !logLoading && (
+                <div className="empty-state">
+                  <div className="icon">📋</div>
+                  <p>No trades logged yet.<br />Click "+ Log Trade" on any signal to record it.</p>
+                </div>
+              )}
+
+              {tradeLog.length > 0 && (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #1e2a3a", color: "#475569", textAlign: "left" }}>
+                        {["Ticker", "Dir", "Entry", "Stop", "Target", "Exit", "Outcome", "P&L", "Conf", "Logged"].map(h => (
+                          <th key={h} style={{ padding: "8px 10px", fontWeight: "normal", letterSpacing: "0.1em", textTransform: "uppercase", fontSize: 10 }}>{h}</th>
+                        ))}
+                        <th style={{ padding: "8px 10px" }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tradeLog.map(t => (
+                        <tr key={t.id} style={{ borderBottom: "1px solid #0f1520" }}>
+                          <td style={{ padding: "10px", color: "#f0f4f8", fontWeight: "bold" }}>{t.ticker}</td>
+                          <td style={{ padding: "10px", color: t.dir === "long" ? "#00d4aa" : "#ff4d6d" }}>{t.dir === "long" ? "▲ Long" : "▼ Short"}</td>
+                          <td style={{ padding: "10px", color: "#94a3b8" }}>${t.entry_price}</td>
+                          <td style={{ padding: "10px", color: "#ff4d6d" }}>${t.stop_price}</td>
+                          <td style={{ padding: "10px", color: "#00d4aa" }}>${t.target_price}</td>
+                          <td style={{ padding: "10px", color: "#94a3b8" }}>{t.exit_price ? `$${t.exit_price}` : "—"}</td>
+                          <td style={{ padding: "10px" }}>
+                            <span className={`badge ${t.outcome === "win" ? "high" : t.outcome === "loss" ? "low" : "med"}`}>
+                              {t.outcome}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px", color: t.pnl_dollar > 0 ? "#00d4aa" : t.pnl_dollar < 0 ? "#ff4d6d" : "#475569" }}>
+                            {t.pnl_dollar != null ? `${t.pnl_dollar > 0 ? "+" : ""}$${t.pnl_dollar} (${t.pnl_pct}%)` : "—"}
+                          </td>
+                          <td style={{ padding: "10px" }}>
+                            <span className={`badge ${t.confidence}`}>{t.confidence}</span>
+                          </td>
+                          <td style={{ padding: "10px", color: "#475569" }}>
+                            {new Date(t.logged_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                          <td style={{ padding: "10px" }}>
+                            {t.outcome === "open" && (
+                              <button className="btn btn-ghost" onClick={() => setCloseModal(t)}
+                                style={{ fontSize: 9, padding: "4px 10px" }}>
+                                Close
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Close Trade Modal */}
+            {closeModal && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+                <div className="card" style={{ width: 340, margin: 0 }}>
+                  <div className="card-title">Close Trade — {closeModal.ticker}</div>
+                  <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>
+                    {closeModal.dir === "long" ? "▲ Long" : "▼ Short"} · Entry: ${closeModal.entry_price}
+                  </p>
+                  <div className="slider-row">
+                    <label>Exit Price</label>
+                    <input type="number" value={exitPrice} onChange={e => setExitPrice(e.target.value)}
+                      placeholder={`e.g. ${closeModal.target_price}`}
+                      style={{
+                        width: "100%", background: "#0f1520", border: "1px solid #2a3a55", borderRadius: 6,
+                        padding: "8px 12px", color: "#e2e8f0", fontFamily: "'Space Mono', monospace", fontSize: 12, outline: "none"
+                      }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    <button className="btn btn-primary" style={{ flex: 1 }}
+                      onClick={() => closeTrade(closeModal.id, exitPrice, parseFloat(exitPrice) > closeModal.entry_price === (closeModal.dir === "long") ? "win" : "loss")}>
+                      ✓ Close as {exitPrice && (parseFloat(exitPrice) > closeModal.entry_price === (closeModal.dir === "long") ? "WIN" : "LOSS")}
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => closeTrade(closeModal.id, closeModal.entry_price, "cancelled")}>
+                      Cancel Trade
+                    </button>
+                  </div>
+                  <button className="btn btn-ghost" style={{ width: "100%", marginTop: 8 }}
+                    onClick={() => { setCloseModal(null); setExitPrice(""); }}>
+                    ✕ Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -912,8 +1316,16 @@ export default function ORBApp() {
               <div className="card">
                 <div className="card-title">Alert Notifications</div>
                 <div className="config-row">
-                  <span className="config-label">🔔 Sound Alert</span>
-                  <button className={`toggle ${alertSound ? "on" : ""}`} onClick={() => setAlertSound(v => !v)} />
+                  <span className="config-label">
+                    {alertSound ? "🔔 Sound Alert" : "🔕 Sound Muted"}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <button className="btn btn-ghost" onClick={() => { playSignalAlert(); }}
+                      style={{ fontSize: 10, padding: "4px 10px" }} title="Preview signal sound">
+                      ▶ Preview
+                    </button>
+                    <button className={`toggle ${alertSound ? "on" : ""}`} onClick={() => setAlertSound(v => !v)} />
+                  </div>
                 </div>
                 <div className="config-row">
                   <span className="config-label">📧 Email Alerts</span>
