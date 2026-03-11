@@ -427,8 +427,8 @@ function ORBChart({ orbHigh = 182.5, orbLow = 179.8, breakout = true }) {
     <svg viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="breakoutFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#00d4aa" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="#00d4aa" stopOpacity="0" />
+          <stop offset="0%" stopColor="#00d4aa" stopOpacity="0.15"/>
+          <stop offset="100%" stopColor="#00d4aa" stopOpacity="0"/>
         </linearGradient>
       </defs>
 
@@ -450,8 +450,8 @@ function ORBChart({ orbHigh = 182.5, orbLow = 179.8, breakout = true }) {
       <rect x={pad.l} y={pad.t} width={cWidth * 7 + gap * 8} height={ch}
         fill="rgba(250,204,21,0.03)" />
       <line x1={pad.l + cWidth * 7 + gap * 8} y1={pad.t}
-        x2={pad.l + cWidth * 7 + gap * 8} y2={pad.t + ch}
-        stroke="#facc1555" strokeWidth="1" strokeDasharray="3,3" />
+            x2={pad.l + cWidth * 7 + gap * 8} y2={pad.t + ch}
+        stroke="#facc1555" strokeWidth="1" strokeDasharray="3,3"/>
       <text x={pad.l + cWidth * 7 + gap * 8 - 2} y={pad.t + 12} textAnchor="end" fontSize="9" fill="#facc1588">ORB Window</text>
 
       {/* Breakout fill */}
@@ -469,10 +469,10 @@ function ORBChart({ orbHigh = 182.5, orbLow = 179.8, breakout = true }) {
         const color = i >= 8 ? (isGreen ? "#00d4aa" : "#ff4d6d") : (isGreen ? "#4ade80" : "#f87171");
         return (
           <g key={i}>
-            <line x1={cx} y1={py(c.h)} x2={cx} y2={py(c.l)} stroke={color} strokeWidth="1.5" />
+            <line x1={cx} y1={py(c.h)} x2={cx} y2={py(c.l)} stroke={color} strokeWidth="1.5"/>
             <rect x={x} y={py(Math.max(c.o, c.c))}
               width={cWidth} height={Math.max(2, Math.abs(py(c.o) - py(c.c)))}
-              fill={color} opacity={i >= 8 ? 1 : 0.7} />
+              fill={color} opacity={i >= 8 ? 1 : 0.7}/>
           </g>
         );
       })}
@@ -480,7 +480,7 @@ function ORBChart({ orbHigh = 182.5, orbLow = 179.8, breakout = true }) {
       {/* Breakout arrow */}
       {breakout && (
         <g transform={`translate(${pad.l + cWidth * 9 + gap * 10 + cWidth / 2}, ${orbHighY - 18})`}>
-          <polygon points="0,-10 -7,0 7,0" fill="#00d4aa" />
+          <polygon points="0,-10 -7,0 7,0" fill="#00d4aa"/>
           <text y="20" textAnchor="middle" fontSize="9" fill="#00d4aa" fontWeight="bold">BREAKOUT</text>
         </g>
       )}
@@ -497,9 +497,9 @@ function ORBChart({ orbHigh = 182.5, orbLow = 179.8, breakout = true }) {
   );
 }
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API = "http://localhost:3001";
 
-const DEFAULT_WATCHLIST = ["SPY", "QQQ", "AMZN", "TSLA"];
+const DEFAULT_WATCHLIST = ["SPY", "QQQ", "AAPL", "TSLA"];
 
 function loadFromStorage(key, fallback) {
   try {
@@ -528,8 +528,9 @@ export default function ORBApp() {
   const [simResult, setSimResult] = useState(null);
   const [simLoading, setSimLoading] = useState(false);
   const [newSignalFlash, setNewSignalFlash] = useState(false);
-  const timerRef = useRef(null);
-  const audioCtxRef = useRef(null);
+  const timerRef       = useRef(null);
+  const audioCtxRef    = useRef(null);
+  const alertedTickers = useRef(new Set()); // tickers we've already sounded an alert for
 
   // ─── Sound engine (Web Audio API — no files needed) ──────────────────────
   function getAudioCtx() {
@@ -542,31 +543,31 @@ export default function ORBApp() {
   function playSignalAlert() {
     if (!alertSound) return;
     try {
-      const ctx = getAudioCtx();
-      const now = ctx.currentTime;
+      const ctx     = getAudioCtx();
+      const now     = ctx.currentTime;
       // Three rising tones — "opportunity knocking"
       [[440, 0], [554, 0.15], [659, 0.30]].forEach(([freq, delay]) => {
-        const osc = ctx.createOscillator();
+        const osc  = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.type = "sine";
+        osc.type      = "sine";
         osc.frequency.setValueAtTime(freq, now + delay);
         gain.gain.setValueAtTime(0, now + delay);
         gain.gain.linearRampToValueAtTime(0.4, now + delay + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.4);
         osc.start(now + delay);
-        osc.stop(now + delay + 0.4);
+        osc.stop(now  + delay + 0.4);
       });
-    } catch { }
+    } catch {}
   }
 
   function playWatchingChime() {
     if (!alertSound) return;
     try {
-      const ctx = getAudioCtx();
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
+      const ctx  = getAudioCtx();
+      const now  = ctx.currentTime;
+      const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -577,7 +578,7 @@ export default function ORBApp() {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
       osc.start(now);
       osc.stop(now + 0.5);
-    } catch { }
+    } catch {}
   }
 
   function addTicker() {
@@ -599,7 +600,7 @@ export default function ORBApp() {
       localStorage.setItem("orb_alertsound", JSON.stringify(alertSound));
       localStorage.setItem("orb_alertemail", JSON.stringify(alertEmail));
       localStorage.setItem("orb_alertpush", JSON.stringify(alertPush));
-    } catch { }
+    } catch {}
     setSaveFlash(true);
     setTimeout(() => setSaveFlash(false), 2000);
   }
@@ -612,9 +613,9 @@ export default function ORBApp() {
     setAlertEmail(false);
     setAlertPush(true);
     try {
-      ["orb_watchlist", "orb_window", "orb_volfilter", "orb_alertsound", "orb_alertemail", "orb_alertpush"]
+      ["orb_watchlist","orb_window","orb_volfilter","orb_alertsound","orb_alertemail","orb_alertpush"]
         .forEach(k => localStorage.removeItem(k));
-    } catch { }
+    } catch {}
   }
 
   // Fetch live quotes for header bar
@@ -625,7 +626,7 @@ export default function ORBApp() {
       const map = {};
       data.quotes.forEach(q => { map[q.ticker] = q; });
       setQuotes(map);
-    } catch { }
+    } catch {}
   }
 
   // Scan watchlist for ORB breakouts
@@ -640,7 +641,10 @@ export default function ORBApp() {
       setSignals(data.signals || []);
       setNoBreakout(data.noBreakout || []);
       setLastScanned(new Date().toLocaleTimeString());
-      if (data.signals.length > 0) {
+      // Only alert for tickers we haven't seen before this session
+      const newTickers = (data.signals || []).filter(s => !alertedTickers.current.has(s.ticker));
+      if (newTickers.length > 0) {
+        newTickers.forEach(s => alertedTickers.current.add(s.ticker));
         setNewSignalFlash(true);
         setTimeout(() => setNewSignalFlash(false), 1200);
         playSignalAlert();
@@ -656,20 +660,20 @@ export default function ORBApp() {
   }
 
   // Trade log state
-  const [tradeLog, setTradeLog] = useState([]);
+  const [tradeLog, setTradeLog]     = useState([]);
   const [tradeStats, setTradeStats] = useState(null);
   const [logLoading, setLogLoading] = useState(false);
   const [closeModal, setCloseModal] = useState(null); // trade being closed
-  const [exitPrice, setExitPrice] = useState("");
+  const [exitPrice, setExitPrice]   = useState("");
 
   async function fetchTradeLog() {
     setLogLoading(true);
     try {
-      const r = await fetch(`${API}/trades`);
+      const r    = await fetch(`${API}/trades`);
       const data = await r.json();
       setTradeLog(data.trades || []);
       setTradeStats(data.stats || null);
-    } catch { }
+    } catch {}
     setLogLoading(false);
   }
 
@@ -679,18 +683,18 @@ export default function ORBApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ticker: signal.ticker,
-          dir: signal.dir,
+          ticker:      signal.ticker,
+          dir:         signal.dir,
           entry_price: signal.price,
-          confidence: signal.conf,
-          volume: signal.vol,
-          reason: signal.reason,
-          orb_high: signal.orbHigh,
-          orb_low: signal.orbLow,
+          confidence:  signal.conf,
+          volume:      signal.vol,
+          reason:      signal.reason,
+          orb_high:    signal.orbHigh,
+          orb_low:     signal.orbLow,
         }),
       });
       fetchTradeLog();
-    } catch { }
+    } catch {}
   }
 
   async function closeTrade(id, exit_price, outcome) {
@@ -703,17 +707,18 @@ export default function ORBApp() {
       setCloseModal(null);
       setExitPrice("");
       fetchTradeLog();
-    } catch { }
+    } catch {}
   }
 
   // Auto-scan on mount and every 60 seconds
   useEffect(() => {
+    alertedTickers.current.clear(); // reset alerts when settings change
     fetchQuotes();
     runScan();
     fetchTradeLog();
     const quoteInt = setInterval(fetchQuotes, 30000);
-    const scanInt = setInterval(runScan, 60000);
-    const logInt = setInterval(fetchTradeLog, 60000);
+    const scanInt  = setInterval(runScan, 60000);
+    const logInt   = setInterval(fetchTradeLog, 60000);
     return () => { clearInterval(quoteInt); clearInterval(scanInt); clearInterval(logInt); };
   }, [watchlist, orbWindow, volFilter]);
 
@@ -742,14 +747,14 @@ export default function ORBApp() {
   const RISK = 1000; // max risk per trade in dollars
 
   function calcTrade(s) {
-    const entry = s.price;
+    const entry    = s.price;
     const orbRange = s.orbHigh - s.orbLow;
     // Stop: just inside ORB level
-    const stop = s.dir === "long"
+    const stop     = s.dir === "long"
       ? +(s.orbHigh - orbRange * 0.1).toFixed(2)
-      : +(s.orbLow + orbRange * 0.1).toFixed(2);
+      : +(s.orbLow  + orbRange * 0.1).toFixed(2);
     const riskPerShare = Math.abs(entry - stop);
-    const shares = riskPerShare > 0 ? Math.floor(RISK / riskPerShare) : 0;
+    const shares   = riskPerShare > 0 ? Math.floor(RISK / riskPerShare) : 0;
     // Target 1: 2:1 fixed R/R
     const t1 = s.dir === "long"
       ? +(entry + riskPerShare * 2).toFixed(2)
@@ -760,8 +765,8 @@ export default function ORBApp() {
       : +(entry - orbRange * 2).toFixed(2);
     const reward1 = +(Math.abs(t1 - entry) * shares).toFixed(0);
     const reward2 = +(Math.abs(t2 - entry) * shares).toFixed(0);
-    const rr1 = riskPerShare > 0 ? (Math.abs(t1 - entry) / riskPerShare).toFixed(1) : "—";
-    const rr2 = riskPerShare > 0 ? (Math.abs(t2 - entry) / riskPerShare).toFixed(1) : "—";
+    const rr1     = riskPerShare > 0 ? (Math.abs(t1 - entry) / riskPerShare).toFixed(1) : "—";
+    const rr2     = riskPerShare > 0 ? (Math.abs(t2 - entry) / riskPerShare).toFixed(1) : "—";
     return { entry, stop, shares, t1, t2, reward1, reward2, rr1, rr2, riskPerShare: +riskPerShare.toFixed(2) };
   }
 
@@ -772,16 +777,16 @@ export default function ORBApp() {
     useEffect(() => {
       const update = () => {
         const secs = Math.floor((Date.now() - firedAt.current) / 1000);
-        if (secs < 60) setElapsed(`${secs}s ago`);
-        else if (secs < 3600) setElapsed(`${Math.floor(secs / 60)}m ${secs % 60}s ago`);
-        else setElapsed(`${Math.floor(secs / 3600)}h ago`);
+        if (secs < 60)       setElapsed(`${secs}s ago`);
+        else if (secs < 3600) setElapsed(`${Math.floor(secs/60)}m ${secs%60}s ago`);
+        else                  setElapsed(`${Math.floor(secs/3600)}h ago`);
       };
       update();
       const int = setInterval(update, 1000);
       return () => clearInterval(int);
     }, []);
 
-    const t = calcTrade(s);
+    const t  = calcTrade(s);
     const now = new Date();
     const late = now.getHours() >= 11;
     const orderType = "Market Order";
@@ -797,7 +802,7 @@ export default function ORBApp() {
               <p>{s.dir === "long" ? "LONG — Buy Breakout" : "SHORT — Sell Breakout"} · {orderType}</p>
             </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <div style={{display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6}}>
             <span className={`signal-timer ${late ? "urgent" : ""}`}>⏱ {elapsed}</span>
             {late && <span className="time-warning">⚠ Late entry — use caution</span>}
           </div>
@@ -840,11 +845,11 @@ export default function ORBApp() {
         <div className="signal-footer">
           <div>
             <div className="meta-text">ORB Range: ${s.orbLow} – ${s.orbHigh} &nbsp;·&nbsp; Vol: {s.vol} &nbsp;·&nbsp; Fired: {s.time}</div>
-            <div className="meta-text" style={{ marginTop: 3 }}>{s.reason}</div>
+            <div className="meta-text" style={{marginTop:3}}>{s.reason}</div>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{display:"flex", gap:8, alignItems:"center"}}>
             <button className="btn btn-ghost" onClick={() => logSignalAsTrade(s)}
-              style={{ fontSize: 9, padding: "6px 12px" }}>
+              style={{fontSize:9, padding:"6px 12px"}}>
               + Log
             </button>
             <button className={`action-btn ${s.dir === "long" ? "buy" : "sell"}`}>
@@ -862,9 +867,9 @@ export default function ORBApp() {
       <header className="header">
         <div className="logo">ORB<span>signal</span></div>
         <div className="ticker-bar">
-          {["SPY", "QQQ", "VIX"].map(t => {
+          {["SPY","QQQ","VIX"].map(t => {
             const q = quotes[t];
-            if (!q) return <div key={t} className="ticker-item">{t} <span style={{ color: "#475569" }}>--</span></div>;
+            if (!q) return <div key={t} className="ticker-item">{t} <span style={{color:"#475569"}}>--</span></div>;
             const up = q.change >= 0;
             return (
               <div key={t} className="ticker-item">
@@ -872,9 +877,9 @@ export default function ORBApp() {
               </div>
             );
           })}
-          <div className="ticker-item"><span className="live-dot" />LIVE</div>
+          <div className="ticker-item"><span className="live-dot"/>LIVE</div>
           <button onClick={() => setAlertSound(v => !v)}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: alertSound ? "#00d4aa" : "#475569" }}
+            style={{background:"none", border:"none", cursor:"pointer", fontSize:16, color: alertSound ? "#00d4aa" : "#475569"}}
             title={alertSound ? "Mute alerts" : "Unmute alerts"}>
             {alertSound ? "🔔" : "🔕"}
           </button>
@@ -886,12 +891,12 @@ export default function ORBApp() {
           <div className="hero-label">
             <span>Day Trading Intelligence</span>
           </div>
-          <h1>Master the<br /><em>Opening Range Breakout</em></h1>
+          <h1>Master the<br/><em>Opening Range Breakout</em></h1>
           <p>Learn the rules, understand the logic, and receive real-time breakout signals — all in one place.</p>
         </div>
 
         {/* Stats */}
-        <div className="grid-3" style={{ marginBottom: 32 }}>
+        <div className="grid-3" style={{marginBottom: 32}}>
           <div className="stat-box">
             <span className="val">68%</span>
             <span className="lbl">Historical Win Rate</span>
@@ -909,12 +914,12 @@ export default function ORBApp() {
         {/* Tabs */}
         <div className="tabs">
           {[
-            { id: "learn", label: "📖 How It Works" },
-            { id: "signals", label: <span>⚡ Live Signals {newSignalFlash ? "🟢" : ""}</span> },
-            { id: "tradelog", label: "📋 Trade Log" },
+            { id: "learn",     label: "📖 How It Works" },
+            { id: "signals",   label: <span>⚡ Live Signals {newSignalFlash ? "🟢" : ""}</span> },
+            { id: "tradelog",  label: "📋 Trade Log" },
             { id: "configure", label: "⚙️ Alert Config" },
           ].map(t => (
-            <button key={t.id} className={`tab ${tab === t.id ? "active" : ""}`} onClick={() => { setTab(t.id); if (t.id === "tradelog") fetchTradeLog(); }}>
+            <button key={t.id} className={`tab ${tab===t.id?"active":""}`} onClick={()=>{ setTab(t.id); if(t.id==="tradelog") fetchTradeLog(); }}>
               {t.label}
             </button>
           ))}
@@ -925,22 +930,22 @@ export default function ORBApp() {
           <div>
             <div className="card">
               <div className="card-title">What is the Opening Range Breakout?</div>
-              <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.8, marginBottom: 20 }}>
+              <p style={{fontSize:13, color:"#94a3b8", lineHeight:1.8, marginBottom:20}}>
                 The ORB strategy captures the directional move that often follows the first burst of market activity. The "opening range" is simply the high and low formed in the first 15–30 minutes of trading. When price breaks decisively above or below that range, it signals institutional momentum that day traders can ride.
               </p>
               <div className="chart-wrap">
                 <ORBChart />
                 <div className="chart-legend">
                   <div className="legend-item">
-                    <div className="legend-line" style={{ background: "#facc15" }} />
+                    <div className="legend-line" style={{background:"#facc15"}}/>
                     <span>ORB High / Low</span>
                   </div>
                   <div className="legend-item">
-                    <div className="legend-line" style={{ background: "rgba(250,204,21,0.3)", height: 8 }} />
+                    <div className="legend-line" style={{background:"rgba(250,204,21,0.3)", height:8}}/>
                     <span>ORB Zone</span>
                   </div>
                   <div className="legend-item">
-                    <div className="legend-line" style={{ background: "#00d4aa" }} />
+                    <div className="legend-line" style={{background:"#00d4aa"}}/>
                     <span>Breakout Candles</span>
                   </div>
                 </div>
@@ -990,7 +995,7 @@ export default function ORBApp() {
               <div>
                 <div className="card">
                   <div className="card-title">Entry Rules Checklist</div>
-                  <div style={{ display: "flex", flexWrap: "wrap" }}>
+                  <div style={{display:"flex", flexWrap:"wrap"}}>
                     {[
                       "Candle closes above/below ORB",
                       "Volume > 1.5× 20-bar avg",
@@ -998,24 +1003,24 @@ export default function ORBApp() {
                       "Market trending (not sideways)",
                       "Entry before 11:00 AM",
                       "Risk max 1% of account",
-                    ].map((r, i) => <div key={i} className="rule-chip"><div className="dot" />{r}</div>)}
+                    ].map((r,i) => <div key={i} className="rule-chip"><div className="dot"/>{r}</div>)}
                   </div>
                 </div>
-                <div className="card" style={{ marginTop: 0 }}>
+                <div className="card" style={{marginTop:0}}>
                   <div className="card-title">⚠ Avoid These Setups</div>
-                  <div style={{ display: "flex", flexWrap: "wrap" }}>
+                  <div style={{display:"flex", flexWrap:"wrap"}}>
                     {[
                       "Wick-only breakout (no close)",
                       "Low volume < 1× average",
                       "Entry after 11:30 AM",
                       "FOMC / CPI days (volatility)",
                       "Tiny ORB range (< 0.2%)",
-                    ].map((r, i) => <div key={i} className="rule-chip pill-warning"><div className="dot" />{r}</div>)}
+                    ].map((r,i) => <div key={i} className="rule-chip pill-warning"><div className="dot"/>{r}</div>)}
                   </div>
                 </div>
-                <div className="card" style={{ marginTop: 0 }}>
+                <div className="card" style={{marginTop:0}}>
                   <div className="card-title">Signal Simulator</div>
-                  <p style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>Simulate a random ORB scenario and see entry/stop/target levels.</p>
+                  <p style={{fontSize:11, color:"#64748b", marginBottom:12}}>Simulate a random ORB scenario and see entry/stop/target levels.</p>
                   <button className="btn btn-primary simulate-btn" onClick={runSim} disabled={simLoading}>
                     {simLoading ? "Simulating..." : "▶ Run Simulation"}
                   </button>
@@ -1025,7 +1030,7 @@ export default function ORBApp() {
                       <div className="result-row"><span className="label">Stop Loss</span><span className="value red">{simResult.stop}</span></div>
                       <div className="result-row"><span className="label">Take Profit</span><span className="value green">{simResult.target}</span></div>
                       <div className="result-row"><span className="label">Risk/Reward</span><span className="value">{simResult.rr}:1</span></div>
-                      <div className="result-row"><span className="label">Outcome</span><span className={`value ${simResult.win ? "green" : "red"}`}>{simResult.outcome} {simResult.pct}</span></div>
+                      <div className="result-row"><span className="label">Outcome</span><span className={`value ${simResult.win?"green":"red"}`}>{simResult.outcome} {simResult.pct}</span></div>
                     </div>
                   )}
                 </div>
@@ -1037,24 +1042,22 @@ export default function ORBApp() {
         {/* === SIGNALS TAB === */}
         {tab === "signals" && (
           <div>
-            <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card" style={{marginBottom:20}}>
               <div className="card-title">Today's ORB Signals</div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <p style={{ fontSize: 11, color: "#475569" }}>
-                  <span className="live-dot" />
+              <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16}}>
+                <p style={{fontSize:11, color:"#475569"}}>
+                  <span className="live-dot"/>
                   {lastScanned ? `Last scanned: ${lastScanned} · Auto-refreshes every 60s` : "Scanning watchlist..."}
                 </p>
                 <button className="btn btn-ghost" onClick={runScan} disabled={scanning}
-                  style={{ fontSize: 10, padding: "6px 12px" }}>
+                  style={{fontSize:10, padding:"6px 12px"}}>
                   {scanning ? "⟳ Scanning..." : "↺ Scan Now"}
                 </button>
               </div>
 
               {scanError && (
-                <div style={{
-                  background: "rgba(255,77,109,0.08)", border: "1px solid #ff4d6d33",
-                  borderRadius: 8, padding: "12px 16px", marginBottom: 16, fontSize: 11, color: "#ff4d6d"
-                }}>
+                <div style={{background:"rgba(255,77,109,0.08)", border:"1px solid #ff4d6d33",
+                  borderRadius:8, padding:"12px 16px", marginBottom:16, fontSize:11, color:"#ff4d6d"}}>
                   ⚠ {scanError}
                 </div>
               )}
@@ -1069,7 +1072,7 @@ export default function ORBApp() {
               {!scanning && !scanError && signals.length === 0 && noBreakout.length === 0 && (
                 <div className="empty-state">
                   <div className="icon">📡</div>
-                  <p>No signals yet.<br />Click "Scan Now" or wait for auto-refresh.</p>
+                  <p>No signals yet.<br/>Click "Scan Now" or wait for auto-refresh.</p>
                 </div>
               )}
 
@@ -1078,21 +1081,19 @@ export default function ORBApp() {
               ))}
 
               {noBreakout.length > 0 && (
-                <div style={{ marginTop: signals.length ? 20 : 0 }}>
-                  <div style={{
-                    fontSize: 10, color: "#475569", letterSpacing: "0.15em",
-                    textTransform: "uppercase", marginBottom: 10
-                  }}>Watching — No Breakout Yet</div>
+                <div style={{marginTop: signals.length ? 20 : 0}}>
+                  <div style={{fontSize:10, color:"#475569", letterSpacing:"0.15em",
+                    textTransform:"uppercase", marginBottom:10}}>Watching — No Breakout Yet</div>
                   {noBreakout.map((s, idx) => (
                     <div key={`nb-${idx}`} style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "10px 14px", background: "#080b10", borderRadius: 8,
-                      border: "1px solid #1a2030", marginBottom: 8, fontSize: 11
+                      display:"flex", alignItems:"center", justifyContent:"space-between",
+                      padding:"10px 14px", background:"#080b10", borderRadius:8,
+                      border:"1px solid #1a2030", marginBottom:8, fontSize:11
                     }}>
-                      <span style={{ color: "#94a3b8", fontWeight: "bold" }}>{s.ticker}</span>
-                      <span style={{ color: "#475569" }}>Range: ${s.orbLow} – ${s.orbHigh}</span>
-                      <span style={{ color: "#64748b" }}>${s.price}</span>
-                      <span style={{ color: "#475569" }}>{s.time}</span>
+                      <span style={{color:"#94a3b8", fontWeight:"bold"}}>{s.ticker}</span>
+                      <span style={{color:"#475569"}}>Range: ${s.orbLow} – ${s.orbHigh}</span>
+                      <span style={{color:"#64748b"}}>${s.price}</span>
+                      <span style={{color:"#475569"}}>{s.time}</span>
                     </div>
                   ))}
                 </div>
@@ -1100,9 +1101,9 @@ export default function ORBApp() {
             </div>
             <div className="card">
               <div className="card-title">Signal Key</div>
-              <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 12, color: "#64748b" }}>
-                <div>🟢 <span style={{ color: "#00d4aa" }}>Long</span> — Breakout above ORB High</div>
-                <div>🔴 <span style={{ color: "#ff4d6d" }}>Short</span> — Breakdown below ORB Low</div>
+              <div style={{display:"flex", gap:24, flexWrap:"wrap", fontSize:12, color:"#64748b"}}>
+                <div>🟢 <span style={{color:"#00d4aa"}}>Long</span> — Breakout above ORB High</div>
+                <div>🔴 <span style={{color:"#ff4d6d"}}>Short</span> — Breakdown below ORB Low</div>
                 <div><span className="badge high">High Conf</span> 200%+ volume</div>
                 <div><span className="badge med">Med Conf</span> 120–200% volume</div>
                 <div><span className="badge low">Low Conf</span> Under 120% — caution</div>
@@ -1115,19 +1116,19 @@ export default function ORBApp() {
         {tab === "tradelog" && (
           <div>
             {tradeStats && (
-              <div className="grid-3" style={{ marginBottom: 20 }}>
+              <div className="grid-3" style={{marginBottom:20}}>
                 <div className="stat-box">
-                  <span className="val" style={{ fontSize: 24 }}>{tradeStats.winRate}%</span>
+                  <span className="val" style={{fontSize:24}}>{tradeStats.winRate}%</span>
                   <span className="lbl">Win Rate</span>
                 </div>
                 <div className="stat-box">
-                  <span className="val" style={{ fontSize: 24, color: tradeStats.totalPnl >= 0 ? "#00d4aa" : "#ff4d6d" }}>
+                  <span className="val" style={{fontSize:24, color: tradeStats.totalPnl >= 0 ? "#00d4aa" : "#ff4d6d"}}>
                     ${tradeStats.totalPnl >= 0 ? "+" : ""}{tradeStats.totalPnl}
                   </span>
                   <span className="lbl">Total P&L</span>
                 </div>
                 <div className="stat-box">
-                  <span className="val" style={{ fontSize: 24 }}>{tradeStats.total}</span>
+                  <span className="val" style={{fontSize:24}}>{tradeStats.total}</span>
                   <span className="lbl">Total Trades ({tradeStats.wins}W / {tradeStats.losses}L)</span>
                 </div>
               </div>
@@ -1135,12 +1136,12 @@ export default function ORBApp() {
 
             <div className="card">
               <div className="card-title">Trade History</div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <p style={{ fontSize: 11, color: "#475569" }}>
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
+                <p style={{fontSize:11, color:"#475569"}}>
                   {logLoading ? "Loading..." : `${tradeLog.length} trades recorded`}
                 </p>
                 <a href={`${API}/trades/export`} target="_blank"
-                  className="btn btn-ghost" style={{ fontSize: 10, padding: "6px 12px", textDecoration: "none" }}>
+                  className="btn btn-ghost" style={{fontSize:10, padding:"6px 12px", textDecoration:"none"}}>
                   ⬇ Export CSV
                 </a>
               </div>
@@ -1148,48 +1149,48 @@ export default function ORBApp() {
               {tradeLog.length === 0 && !logLoading && (
                 <div className="empty-state">
                   <div className="icon">📋</div>
-                  <p>No trades logged yet.<br />Click "+ Log Trade" on any signal to record it.</p>
+                  <p>No trades logged yet.<br/>Click "+ Log Trade" on any signal to record it.</p>
                 </div>
               )}
 
               {tradeLog.length > 0 && (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%", borderCollapse:"collapse", fontSize:11}}>
                     <thead>
-                      <tr style={{ borderBottom: "1px solid #1e2a3a", color: "#475569", textAlign: "left" }}>
-                        {["Ticker", "Dir", "Entry", "Stop", "Target", "Exit", "Outcome", "P&L", "Conf", "Logged"].map(h => (
-                          <th key={h} style={{ padding: "8px 10px", fontWeight: "normal", letterSpacing: "0.1em", textTransform: "uppercase", fontSize: 10 }}>{h}</th>
+                      <tr style={{borderBottom:"1px solid #1e2a3a", color:"#475569", textAlign:"left"}}>
+                        {["Ticker","Dir","Entry","Stop","Target","Exit","Outcome","P&L","Conf","Logged"].map(h => (
+                          <th key={h} style={{padding:"8px 10px", fontWeight:"normal", letterSpacing:"0.1em", textTransform:"uppercase", fontSize:10}}>{h}</th>
                         ))}
-                        <th style={{ padding: "8px 10px" }}></th>
+                        <th style={{padding:"8px 10px"}}></th>
                       </tr>
                     </thead>
                     <tbody>
                       {tradeLog.map(t => (
-                        <tr key={t.id} style={{ borderBottom: "1px solid #0f1520" }}>
-                          <td style={{ padding: "10px", color: "#f0f4f8", fontWeight: "bold" }}>{t.ticker}</td>
-                          <td style={{ padding: "10px", color: t.dir === "long" ? "#00d4aa" : "#ff4d6d" }}>{t.dir === "long" ? "▲ Long" : "▼ Short"}</td>
-                          <td style={{ padding: "10px", color: "#94a3b8" }}>${t.entry_price}</td>
-                          <td style={{ padding: "10px", color: "#ff4d6d" }}>${t.stop_price}</td>
-                          <td style={{ padding: "10px", color: "#00d4aa" }}>${t.target_price}</td>
-                          <td style={{ padding: "10px", color: "#94a3b8" }}>{t.exit_price ? `$${t.exit_price}` : "—"}</td>
-                          <td style={{ padding: "10px" }}>
+                        <tr key={t.id} style={{borderBottom:"1px solid #0f1520"}}>
+                          <td style={{padding:"10px", color:"#f0f4f8", fontWeight:"bold"}}>{t.ticker}</td>
+                          <td style={{padding:"10px", color: t.dir === "long" ? "#00d4aa" : "#ff4d6d"}}>{t.dir === "long" ? "▲ Long" : "▼ Short"}</td>
+                          <td style={{padding:"10px", color:"#94a3b8"}}>${t.entry_price}</td>
+                          <td style={{padding:"10px", color:"#ff4d6d"}}>${t.stop_price}</td>
+                          <td style={{padding:"10px", color:"#00d4aa"}}>${t.target_price}</td>
+                          <td style={{padding:"10px", color:"#94a3b8"}}>{t.exit_price ? `$${t.exit_price}` : "—"}</td>
+                          <td style={{padding:"10px"}}>
                             <span className={`badge ${t.outcome === "win" ? "high" : t.outcome === "loss" ? "low" : "med"}`}>
                               {t.outcome}
                             </span>
                           </td>
-                          <td style={{ padding: "10px", color: t.pnl_dollar > 0 ? "#00d4aa" : t.pnl_dollar < 0 ? "#ff4d6d" : "#475569" }}>
+                          <td style={{padding:"10px", color: t.pnl_dollar > 0 ? "#00d4aa" : t.pnl_dollar < 0 ? "#ff4d6d" : "#475569"}}>
                             {t.pnl_dollar != null ? `${t.pnl_dollar > 0 ? "+" : ""}$${t.pnl_dollar} (${t.pnl_pct}%)` : "—"}
                           </td>
-                          <td style={{ padding: "10px" }}>
+                          <td style={{padding:"10px"}}>
                             <span className={`badge ${t.confidence}`}>{t.confidence}</span>
                           </td>
-                          <td style={{ padding: "10px", color: "#475569" }}>
-                            {new Date(t.logged_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          <td style={{padding:"10px", color:"#475569"}}>
+                            {new Date(t.logged_at).toLocaleDateString("en-US", {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"})}
                           </td>
-                          <td style={{ padding: "10px" }}>
+                          <td style={{padding:"10px"}}>
                             {t.outcome === "open" && (
                               <button className="btn btn-ghost" onClick={() => setCloseModal(t)}
-                                style={{ fontSize: 9, padding: "4px 10px" }}>
+                                style={{fontSize:9, padding:"4px 10px"}}>
                                 Close
                               </button>
                             )}
@@ -1204,23 +1205,21 @@ export default function ORBApp() {
 
             {/* Close Trade Modal */}
             {closeModal && (
-              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-                <div className="card" style={{ width: 340, margin: 0 }}>
+              <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000}}>
+                <div className="card" style={{width:340, margin:0}}>
                   <div className="card-title">Close Trade — {closeModal.ticker}</div>
-                  <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>
+                  <p style={{fontSize:12, color:"#94a3b8", marginBottom:16}}>
                     {closeModal.dir === "long" ? "▲ Long" : "▼ Short"} · Entry: ${closeModal.entry_price}
                   </p>
                   <div className="slider-row">
                     <label>Exit Price</label>
                     <input type="number" value={exitPrice} onChange={e => setExitPrice(e.target.value)}
                       placeholder={`e.g. ${closeModal.target_price}`}
-                      style={{
-                        width: "100%", background: "#0f1520", border: "1px solid #2a3a55", borderRadius: 6,
-                        padding: "8px 12px", color: "#e2e8f0", fontFamily: "'Space Mono', monospace", fontSize: 12, outline: "none"
-                      }} />
+                      style={{width:"100%", background:"#0f1520", border:"1px solid #2a3a55", borderRadius:6,
+                        padding:"8px 12px", color:"#e2e8f0", fontFamily:"'Space Mono', monospace", fontSize:12, outline:"none"}} />
                   </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <button className="btn btn-primary" style={{ flex: 1 }}
+                  <div style={{display:"flex", gap:8, marginTop:12}}>
+                    <button className="btn btn-primary" style={{flex:1}}
                       onClick={() => closeTrade(closeModal.id, exitPrice, parseFloat(exitPrice) > closeModal.entry_price === (closeModal.dir === "long") ? "win" : "loss")}>
                       ✓ Close as {exitPrice && (parseFloat(exitPrice) > closeModal.entry_price === (closeModal.dir === "long") ? "WIN" : "LOSS")}
                     </button>
@@ -1228,7 +1227,7 @@ export default function ORBApp() {
                       Cancel Trade
                     </button>
                   </div>
-                  <button className="btn btn-ghost" style={{ width: "100%", marginTop: 8 }}
+                  <button className="btn btn-ghost" style={{width:"100%", marginTop:8}}
                     onClick={() => { setCloseModal(null); setExitPrice(""); }}>
                     ✕ Dismiss
                   </button>
@@ -1254,27 +1253,27 @@ export default function ORBApp() {
                   <input type="range" min="100" max="400" step="10" value={volFilter}
                     onChange={e => setVolFilter(Number(e.target.value))} />
                 </div>
-                <div style={{ marginBottom: 16 }}>
-                  <div className="card-title" style={{ marginBottom: 10 }}>Watchlist</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                <div style={{marginBottom:16}}>
+                  <div className="card-title" style={{marginBottom:10}}>Watchlist</div>
+                  <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:10}}>
                     {watchlist.map(t => (
                       <div key={t} style={{
-                        display: "flex", alignItems: "center", gap: 5,
-                        background: "#1a2540", border: "1px solid #2a3a55",
-                        borderRadius: 6, padding: "5px 10px", fontSize: 11, color: "#e2e8f0"
+                        display:"flex", alignItems:"center", gap:5,
+                        background:"#1a2540", border:"1px solid #2a3a55",
+                        borderRadius:6, padding:"5px 10px", fontSize:11, color:"#e2e8f0"
                       }}>
                         {t}
                         <button onClick={() => removeTicker(t)} style={{
-                          background: "none", border: "none", color: "#ff4d6d",
-                          cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0, marginLeft: 2
+                          background:"none", border:"none", color:"#ff4d6d",
+                          cursor:"pointer", fontSize:13, lineHeight:1, padding:0, marginLeft:2
                         }}>×</button>
                       </div>
                     ))}
                     {watchlist.length === 0 && (
-                      <span style={{ fontSize: 11, color: "#475569" }}>No tickers — add one below</span>
+                      <span style={{fontSize:11, color:"#475569"}}>No tickers — add one below</span>
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{display:"flex", gap:8}}>
                     <input
                       type="text"
                       value={tickerInput}
@@ -1283,12 +1282,12 @@ export default function ORBApp() {
                       placeholder="Add ticker e.g. NVDA"
                       maxLength={5}
                       style={{
-                        flex: 1, background: "#0f1520", border: "1px solid #2a3a55",
-                        borderRadius: 6, padding: "8px 12px", color: "#e2e8f0",
-                        fontFamily: "'Space Mono', monospace", fontSize: 11, outline: "none"
+                        flex:1, background:"#0f1520", border:"1px solid #2a3a55",
+                        borderRadius:6, padding:"8px 12px", color:"#e2e8f0",
+                        fontFamily:"'Space Mono', monospace", fontSize:11, outline:"none"
                       }}
                     />
-                    <button className="btn btn-primary" onClick={addTicker} style={{ padding: "8px 14px" }}>
+                    <button className="btn btn-primary" onClick={addTicker} style={{padding:"8px 14px"}}>
                       + Add
                     </button>
                   </div>
@@ -1319,21 +1318,21 @@ export default function ORBApp() {
                   <span className="config-label">
                     {alertSound ? "🔔 Sound Alert" : "🔕 Sound Muted"}
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{display:"flex", alignItems:"center", gap:10}}>
                     <button className="btn btn-ghost" onClick={() => { playSignalAlert(); }}
-                      style={{ fontSize: 10, padding: "4px 10px" }} title="Preview signal sound">
+                      style={{fontSize:10, padding:"4px 10px"}} title="Preview signal sound">
                       ▶ Preview
                     </button>
-                    <button className={`toggle ${alertSound ? "on" : ""}`} onClick={() => setAlertSound(v => !v)} />
+                    <button className={`toggle ${alertSound?"on":""}`} onClick={() => setAlertSound(v => !v)}/>
                   </div>
                 </div>
                 <div className="config-row">
                   <span className="config-label">📧 Email Alerts</span>
-                  <button className={`toggle ${alertEmail ? "on" : ""}`} onClick={() => setAlertEmail(v => !v)} />
+                  <button className={`toggle ${alertEmail?"on":""}`} onClick={() => setAlertEmail(v => !v)}/>
                 </div>
                 <div className="config-row">
                   <span className="config-label">📱 Push Notifications</span>
-                  <button className={`toggle ${alertPush ? "on" : ""}`} onClick={() => setAlertPush(v => !v)} />
+                  <button className={`toggle ${alertPush?"on":""}`} onClick={() => setAlertPush(v => !v)}/>
                 </div>
                 <div className="config-row">
                   <span className="config-label">Current ORB Window</span>
@@ -1343,10 +1342,10 @@ export default function ORBApp() {
                   <span className="config-label">Volume Threshold</span>
                   <span className="config-value">{volFilter}%</span>
                 </div>
-                <button className="btn btn-primary" onClick={saveConfig} style={{ marginTop: 20, width: "100%" }}>
+                <button className="btn btn-primary" onClick={saveConfig} style={{marginTop:20, width:"100%"}}>
                   {saveFlash ? "✓ Saved!" : "Save Configuration"}
                 </button>
-                <button className="btn btn-ghost" onClick={resetConfig} style={{ marginTop: 8, width: "100%" }}>
+                <button className="btn btn-ghost" onClick={resetConfig} style={{marginTop:8, width:"100%"}}>
                   Reset to Defaults
                 </button>
               </div>
