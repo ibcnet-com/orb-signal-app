@@ -989,6 +989,107 @@ export default function ORBApp() {
 
   const confBadge = c => <span className={`badge ${c}`}>{c === "high" ? "High Conf" : c === "med" ? "Med Conf" : "Low Conf"}</span>;
 
+  // ── Confidence Score (max 97%) ──────────────────────────────────────────────
+  // Weight distribution (see CHANGELOG for full rationale):
+  //   Breakout confirmed      20%  — core signal
+  //   Volume surge            18%  — real buying/selling interest
+  //   SPY trend aligned       15%  — market tailwind
+  //   ORB range healthy       12%  — avoids false breakouts
+  //   Entry before 11 AM      12%  — timing edge
+  //   No major news           10%  — avoids news-driven chaos
+  //   No economic event        8%  — avoids macro distortion
+  //   Pre-market gap aligned   3%  — bonus confirmation
+  //   TOTAL MAX               97%  — 100% certainty never exists
+  function calcConfidenceScore(s) {
+    const now = new Date();
+    const et  = new Date(now.toLocaleString("en-US", { timeZone:"America/New_York" }));
+    const h   = et.getHours(), m = et.getMinutes();
+    const isBeforeEleven = h < 11 || (h === 11 && m === 0);
+
+    // SPY aligned = trend matches trade direction
+    const spyAligned = s.dir === "long"
+      ? spyTrend?.trend === "up"
+      : spyTrend?.trend === "down";
+
+    // Pre-market gap aligned with trade direction
+    const pmEntry = premarket.find(p => p.ticker === s.ticker);
+    const gapAligned = pmEntry
+      ? (s.dir === "long" ? pmEntry.gapPct > 0.3 : pmEntry.gapPct < -0.3)
+      : null;
+
+    const checks = [
+      { label: "Breakout confirmed",      weight: 20, pass: true                          },
+      { label: "Volume surge",            weight: 18, pass: s.vol >= volFilter            },
+      { label: "SPY trend aligned",       weight: 15, pass: spyAligned                    },
+      { label: "ORB range healthy",       weight: 12, pass: !s.tinyRange                  },
+      { label: "Entry before 11 AM",      weight: 12, pass: isBeforeEleven                },
+      { label: "No major news",           weight: 10, pass: !s.news?.hasNews              },
+      { label: "No economic event",       weight:  8, pass: !economicEvent?.hasEvent      },
+      { label: "Pre-market gap aligned",  weight:  3, pass: gapAligned === true, na: gapAligned === null },
+    ];
+
+    const score = checks.reduce((sum, c) => sum + (c.pass && !c.na ? c.weight : 0), 0);
+    return { score, checks };
+  }
+
+  function ConfScoreBadge({ s }) {
+    const [open, setOpen] = useState(false);
+    const { score, checks } = calcConfidenceScore(s);
+    const color = score >= 80 ? "#00d4aa" : score >= 60 ? "#facc15" : "#ff4d6d";
+    const bg    = score >= 80 ? "rgba(0,212,170,0.12)" : score >= 60 ? "rgba(250,204,21,0.12)" : "rgba(255,77,109,0.12)";
+    const border= score >= 80 ? "#00d4aa33" : score >= 60 ? "#facc1533" : "#ff4d6d33";
+    return (
+      <span style={{position:"relative", display:"inline-block"}}>
+        <span
+          onClick={() => setOpen(o => !o)}
+          style={{
+            display:"inline-flex", alignItems:"center", gap:5,
+            background:bg, border:`1px solid ${border}`, color,
+            borderRadius:6, padding:"3px 10px", fontSize:11,
+            fontFamily:"'Space Mono',monospace", cursor:"pointer",
+            userSelect:"none", transition:"all 0.2s",
+          }}>
+          ⬡ {score}%
+        </span>
+        {open && (
+          <div style={{
+            position:"absolute", top:"calc(100% + 6px)", left:0,
+            background:"#0d1623", border:"1px solid #1e2a3a",
+            borderRadius:10, padding:"12px 14px", zIndex:200,
+            minWidth:230, boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+          }}>
+            <div style={{fontSize:9, color:"#475569", letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:10}}>
+              Confidence Breakdown
+            </div>
+            {checks.map((c,i) => (
+              <div key={i} style={{display:"flex", justifyContent:"space-between", alignItems:"center",
+                padding:"5px 0", borderBottom:"1px solid #0f1520", fontSize:11}}>
+                <span style={{color: c.na ? "#2a3a55" : c.pass ? "#94a3b8" : "#475569"}}>
+                  {c.na ? "~" : c.pass ? "✓" : "⚠"} {c.label}
+                </span>
+                <span style={{
+                  fontFamily:"'Space Mono',monospace", fontSize:10,
+                  color: c.na ? "#2a3a55" : c.pass ? color : "#2a3a55",
+                  fontWeight: c.pass ? 700 : 400,
+                }}>
+                  {c.na ? "n/a" : c.pass ? `+${c.weight}%` : `+0%`}
+                </span>
+              </div>
+            ))}
+            <div style={{display:"flex", justifyContent:"space-between", marginTop:8,
+              paddingTop:8, borderTop:"1px solid #1e2a3a"}}>
+              <span style={{fontSize:11, color:"#64748b"}}>Confidence Score</span>
+              <span style={{fontFamily:"'Space Mono',monospace", fontSize:12, color, fontWeight:700}}>{score}%</span>
+            </div>
+            <div style={{fontSize:9, color:"#2a3a55", marginTop:6}}>
+              Max 97% — 100% certainty never exists
+            </div>
+          </div>
+        )}
+      </span>
+    );
+  }
+
   function calcTrade(s) {
     const entry    = s.price;
     const orbRange = s.orbHigh - s.orbLow;
@@ -1042,7 +1143,7 @@ export default function ORBApp() {
           <div className="signal-ticker">
             <div className={`signal-dir ${s.dir}`}>{s.dir === "long" ? "▲" : "▼"}</div>
             <div>
-              <h3>{s.ticker} &nbsp; {confBadge(s.conf)}</h3>
+              <h3>{s.ticker} &nbsp; {confBadge(s.conf)} &nbsp; <ConfScoreBadge s={s} /></h3>
               <p>{s.dir === "long" ? "LONG — Buy Breakout" : "SHORT — Sell Breakout"} · {orderType}</p>
             </div>
           </div>
@@ -1868,7 +1969,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v2.0.2
+                v2.1.0
               </a>
             </div>
           </div>

@@ -4,6 +4,29 @@ All notable changes to ORBsignal are documented here.
 
 ---
 
+## v2.1.0 — 2026-03-11
+### Confidence Score Badge
+Added a ⬡ confidence score badge (0–97%) next to the High/Med/Low Conf badge on every signal card.
+Clicking the badge opens a breakdown tooltip showing each indicator's contribution.
+
+### Confidence Score Weight Distribution
+| Indicator                  | Weight | Rationale |
+|----------------------------|--------|-----------|
+| Breakout confirmed         |  20%   | Core signal — without this nothing else matters |
+| Volume surge               |  18%   | Most reliable confirmation of real buying interest |
+| SPY trend aligned          |  15%   | Market tailwind is critical for ORB success |
+| ORB range healthy (≥0.2%)  |  12%   | Tiny ranges produce false breakouts |
+| Entry before 11 AM         |  12%   | Late entries have statistically lower win rate |
+| No major news on ticker    |  10%   | News creates unpredictable price action |
+| No high-impact econ event  |   8%   | FOMC/CPI/NFP distorts normal market behavior |
+| Pre-market gap aligned     |   3%   | Bonus confirmation — n/a if no premarket data |
+| **TOTAL MAX**              | **97%**| **100% certainty never exists in trading** |
+
+### Score Color Thresholds
+- 🟢 80–97% — High confidence, most boxes checked
+- 🟡 60–79% — Moderate confidence, some concerns
+- 🔴 0–59%  — Low confidence, consider skipping
+
 ## v2.0.1 — 2026-03-11
 - Morning Brief now shows date (e.g. "Tue, Mar 11 · 8:23 AM ET") to avoid confusion
 - Added 🌅 Morning Brief link in footer — opens the card anytime on demand
