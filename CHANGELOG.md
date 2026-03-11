@@ -4,6 +4,18 @@ All notable changes to ORBsignal are documented here.
 
 ---
 
+## v1.9.0 — 2026-03-11
+- Real trade persistence via JSON file storage on Railway (no native deps)
+- Trade log now saves across deploys in /data/trades.json
+- P&L auto-calculated on close based on entry, exit, shares, direction
+- Full CSV export with all trade fields
+- Mobile layout overhaul: responsive bottom tab bar on iPhone/Android
+- Bottom nav replaces desktop tabs on screens ≤768px
+- Safe area inset support for iPhone notch/home bar
+- Futures grid 2-column on mobile
+- Cards, signal badges, header bar all optimized for small screens
+- Footer hidden on mobile (bottom nav takes over)
+
 ## v1.8.0 — 2026-03-10
 - Added configurable Max Risk Per Trade slider in Alert Config ($100–$10,000, default $1,000)
 - Position size and reward calculations on signal cards now use saved max risk value

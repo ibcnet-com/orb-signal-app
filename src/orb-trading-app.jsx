@@ -126,9 +126,96 @@ const style = `
   }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
-  @media(max-width:640px) {
-    .grid-2 { grid-template-columns: 1fr; }
+
+  /* ── Mobile bottom tab bar ── */
+  .bottom-nav {
+    display: none;
+  }
+
+  @media(max-width:768px) {
+    /* Global */
+    body { padding-bottom: 72px; }
+
+    /* Hero */
+    .hero { padding: 32px 16px 24px; }
+    .hero h1 { font-size: 28px; }
+    .hero p  { font-size: 12px; }
+
+    /* Hide desktop tabs, show bottom nav */
+    .tabs { display: none !important; }
+    .bottom-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(9,12,16,0.97);
+      border-top: 1px solid #1e2a3a;
+      z-index: 100;
+      padding: 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .bottom-nav button {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 3px;
+      padding: 10px 4px 8px;
+      background: transparent; border: none;
+      color: #475569; cursor: pointer;
+      font-family: 'Space Mono', monospace;
+      font-size: 8px; letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .bottom-nav button.active { color: #00d4aa; }
+    .bottom-nav button .nav-icon { font-size: 18px; line-height: 1; }
+
+    /* Layout */
+    .app-wrap { padding: 0 12px; }
+    main { padding: 12px 0 0; }
+
+    /* Cards */
+    .card { padding: 16px; border-radius: 10px; margin-bottom: 14px; }
+    .card-title { font-size: 9px; }
+
+    /* Grids */
+    .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+    .grid-3 { grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Header bar */
+    .quote-bar { gap: 12px; padding: 10px 12px; font-size: 10px; flex-wrap: wrap; }
+    .header-actions { gap: 8px; }
+
+    /* Signal cards */
+    .signal-card { padding: 14px; }
+    .tb-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .rule-badges { gap: 6px; }
+    .rule-badge { font-size: 9px; padding: 3px 6px; }
+
+    /* Trade log table — stack on mobile */
+    table { font-size: 11px; }
+    table th, table td { padding: 8px 6px; }
+
+    /* Footer — hide on mobile (bottom nav replaces it) */
+    .app-footer { display: none; }
+
+    /* Config sliders */
+    .slider-row { margin: 12px 0; }
+
+    /* Futures grid */
+    .futures-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+
+    /* Stats bar */
+    .stats-bar { gap: 10px; flex-wrap: wrap; }
+    .stat-pill { font-size: 10px; padding: 6px 10px; }
+
+    /* Watchlist chips */
+    .ticker-chip { font-size: 10px; padding: 4px 8px; }
+  }
+
+  @media(max-width:400px) {
     .grid-3 { grid-template-columns: 1fr; }
+    .futures-grid { grid-template-columns: 1fr !important; }
+    .tb-grid { grid-template-columns: 1fr; }
   }
 
   /* ORB Chart Visual */
@@ -1602,12 +1689,35 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v1.8.0
+                v1.9.0
               </a>
             </div>
           </div>
         </div>
       </footer>
+
+      {/* ── Mobile bottom tab bar ── */}
+      <nav className="bottom-nav">
+        {[
+          { id: "learn",     icon: "📖", label: "How To" },
+          { id: "signals",   icon: "⚡", label: "Signals" },
+          { id: "futures",   icon: "📈", label: "Futures" },
+          { id: "tradelog",  icon: "📋", label: "Log" },
+          { id: "configure", icon: "⚙️", label: "Config" },
+        ].map(t => (
+          <button key={t.id}
+            className={tab === t.id ? "active" : ""}
+            onClick={() => {
+              setTab(t.id);
+              if (t.id === "tradelog") fetchTradeLog();
+              if (t.id === "futures")  fetchFutures();
+              window.scrollTo(0, 0);
+            }}>
+            <span className="nav-icon">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

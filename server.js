@@ -275,11 +275,104 @@ app.get("/futures", async (req, res) => {
   });
 });
 
-// Trade log stubs — will be replaced when SQLite is added back
-app.post("/trades",         (req, res) => res.json({ success: true, id: Date.now() }));
-app.patch("/trades/:id",    (req, res) => res.json({ success: true }));
-app.get("/trades",          (req, res) => res.json({ trades: [], stats: { total:0, wins:0, losses:0, winRate:0, totalPnl:0, avgPnl:0 } }));
-app.get("/trades/export",   (req, res) => { res.setHeader("Content-Type","text/csv"); res.send("id,ticker\r\n"); });
+// ─── Trade Log (JSON file persistence) ───────────────────────────────────────
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR  = join(__dirname, "data");
+const DB_FILE   = join(DATA_DIR, "trades.json");
+
+function loadTrades() {
+  try {
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    if (!existsSync(DB_FILE))  writeFileSync(DB_FILE, "[]", "utf8");
+    return JSON.parse(readFileSync(DB_FILE, "utf8"));
+  } catch { return []; }
+}
+
+function saveTrades(trades) {
+  try {
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(DB_FILE, JSON.stringify(trades, null, 2), "utf8");
+  } catch (e) { console.error("Save error:", e.message); }
+}
+
+function calcStats(trades) {
+  const closed = trades.filter(t => t.status === "closed");
+  const wins   = closed.filter(t => t.outcome === "win").length;
+  const losses = closed.filter(t => t.outcome === "loss").length;
+  const totalPnl = closed.reduce((s, t) => s + (t.pnl || 0), 0);
+  return {
+    total:    closed.length,
+    wins,
+    losses,
+    winRate:  closed.length ? +((wins / closed.length) * 100).toFixed(1) : 0,
+    totalPnl: +totalPnl.toFixed(2),
+    avgPnl:   closed.length ? +(totalPnl / closed.length).toFixed(2) : 0,
+  };
+}
+
+app.post("/trades", (req, res) => {
+  const trades = loadTrades();
+  const trade  = {
+    id:        Date.now(),
+    ticker:    req.body.ticker    || "",
+    dir:       req.body.dir       || "",
+    entry:     req.body.entry     || null,
+    stop:      req.body.stop      || null,
+    target1:   req.body.target1   || null,
+    target2:   req.body.target2   || null,
+    shares:    req.body.shares    || null,
+    riskAmt:   req.body.riskAmt   || null,
+    status:    "open",
+    outcome:   null,
+    exitPrice: null,
+    pnl:       null,
+    loggedAt:  new Date().toISOString(),
+    closedAt:  null,
+  };
+  trades.unshift(trade);
+  saveTrades(trades);
+  res.json({ success: true, id: trade.id });
+});
+
+app.patch("/trades/:id", (req, res) => {
+  const trades = loadTrades();
+  const idx    = trades.findIndex(t => t.id === Number(req.params.id));
+  if (idx === -1) return res.status(404).json({ error: "Not found" });
+  const t      = trades[idx];
+  t.status     = "closed";
+  t.outcome    = req.body.outcome   || "loss";
+  t.exitPrice  = req.body.exitPrice || null;
+  t.closedAt   = new Date().toISOString();
+  if (t.exitPrice && t.entry && t.shares) {
+    const diff = t.dir === "long"
+      ? (t.exitPrice - t.entry) * t.shares
+      : (t.entry - t.exitPrice) * t.shares;
+    t.pnl = +diff.toFixed(2);
+  }
+  trades[idx] = t;
+  saveTrades(trades);
+  res.json({ success: true, trade: t });
+});
+
+app.get("/trades", (req, res) => {
+  const trades = loadTrades();
+  res.json({ trades, stats: calcStats(trades) });
+});
+
+app.get("/trades/export", (req, res) => {
+  const trades = loadTrades();
+  const header = "id,ticker,dir,entry,stop,target1,shares,status,outcome,exitPrice,pnl,loggedAt,closedAt";
+  const rows   = trades.map(t =>
+    [t.id,t.ticker,t.dir,t.entry,t.stop,t.target1,t.shares,t.status,t.outcome,t.exitPrice,t.pnl,t.loggedAt,t.closedAt].join(",")
+  );
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", "attachment; filename=trades.csv");
+  res.send([header, ...rows].join("\r\n"));
+});
 
 app.listen(PORT, () => {
   console.log(`\n✅ ORBsignal server running on port ${PORT}`);
