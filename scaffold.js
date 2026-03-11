@@ -1274,6 +1274,7 @@ export default function ORBApp() {
           <div className="trade-box size">
             <div className="tb-label">Position Size</div>
             <div className="tb-value">{t.shares} shares</div>
+            <div className="tb-value">\${(t.shares * t.entry).toLocaleString("en-US", {maximumFractionDigits:0})}</div>
             <div className="tb-sub">~$1,000 max risk</div>
           </div>
         </div>
