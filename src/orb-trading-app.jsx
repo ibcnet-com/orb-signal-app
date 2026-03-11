@@ -732,7 +732,7 @@ export default function ORBApp() {
     setBriefDismissed(false);
     setTab("signals");
     window.scrollTo(0, 0);
-    if (futures.length === 0) fetchFutures();
+    fetchFutures();
   }
 
   async function fetchFutures() {
@@ -1332,7 +1332,7 @@ export default function ORBApp() {
           <div>
 
             {/* ── Morning Brief ── */}
-            {(isPreMarketHours() || briefForced) && !briefDismissed && futures.length > 0 && (
+            {(isPreMarketHours() || briefForced) && !briefDismissed && (
               <div className="morning-brief">
                 <div className="brief-header">
                   <div className="brief-title">
@@ -1346,6 +1346,11 @@ export default function ORBApp() {
                   <button className="brief-dismiss" onClick={() => { setBriefDismissed(true); setBriefForced(false); }} title="Dismiss">✕</button>
                 </div>
 
+                {futures.length === 0 && (
+                  <div style={{color:"#475569", fontSize:12, padding:"12px 0"}}>⟳ Loading futures data...</div>
+                )}
+
+                {futures.length > 0 && (<>
                 {/* Index futures */}
                 <div className="brief-futures">
                   {futures.filter(f => f.category === "index").map(f => (
@@ -1406,6 +1411,7 @@ export default function ORBApp() {
                     );
                   })()}
                 </div>
+                </>)}
               </div>
             )}
             <div className="card" style={{marginBottom:20}}>
@@ -1862,7 +1868,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v2.0.1
+                v2.0.2
               </a>
             </div>
           </div>
