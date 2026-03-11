@@ -964,6 +964,7 @@ export default function ORBApp() {
   const [tab, setTab] = useState("learn");
   const [signals, setSignals] = useState([]);
   const [noBreakout, setNoBreakout] = useState([]);
+  const [spyTrend, setSpyTrend] = useState(null);
   const [quotes, setQuotes] = useState({});
   const [scanning, setScanning] = useState(false);
   const [lastScanned, setLastScanned] = useState(null);
@@ -1091,6 +1092,7 @@ export default function ORBApp() {
       const data = await r.json();
       setSignals(data.signals || []);
       setNoBreakout(data.noBreakout || []);
+      if (data.spyTrend) setSpyTrend(data.spyTrend);
       setLastScanned(new Date().toLocaleTimeString());
       // Only alert for tickers we haven't seen before this session
       const newTickers = (data.signals || []).filter(s => !alertedTickers.current.has(s.ticker));
@@ -1293,7 +1295,30 @@ export default function ORBApp() {
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Rule checks */}
+        <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:14}}>
+          <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+            background: s.tinyRange ? "rgba(255,77,109,0.1)" : "rgba(0,212,170,0.08)",
+            border: \`1px solid \${s.tinyRange ? "#ff4d6d44" : "#00d4aa33"}\`,
+            color: s.tinyRange ? "#ff4d6d" : "#00d4aa"}}>
+            {s.tinyRange ? "⚠ Tiny range (<0.2%)" : \`✓ Range OK (\${s.orbRangePct}%)\`}
+          </span>
+          <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+            background: spyTrend?.trend === "sideways" ? "rgba(250,204,21,0.08)" : spyTrend?.trend === "unknown" ? "rgba(71,85,105,0.2)" : "rgba(0,212,170,0.08)",
+            border: \`1px solid \${spyTrend?.trend === "sideways" ? "#facc1544" : spyTrend?.trend === "unknown" ? "#47556944" : "#00d4aa33"}\`,
+            color: spyTrend?.trend === "sideways" ? "#facc15" : spyTrend?.trend === "unknown" ? "#475569" : "#00d4aa"}}>
+            {spyTrend?.trend === "up"       ? \`✓ SPY trending up (+\${spyTrend.spyChange}%)\` :
+             spyTrend?.trend === "down"     ? \`✓ SPY trending down (\${spyTrend.spyChange}%)\` :
+             spyTrend?.trend === "sideways" ? \`⚠ SPY sideways (\${spyTrend?.spyChange}%)\` :
+             "— SPY trend unknown"}
+          </span>
+          <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+            background: late ? "rgba(255,77,109,0.08)" : "rgba(0,212,170,0.08)",
+            border: \`1px solid \${late ? "#ff4d6d44" : "#00d4aa33"}\`,
+            color: late ? "#ff4d6d" : "#00d4aa"}}>
+            {late ? "⚠ Entry after 11 AM" : "✓ Entry window open"}
+          </span>
+        </div>
         <div className="signal-footer">
           <div>
             <div className="meta-text">ORB Range: \${s.orbLow} – \${s.orbHigh} &nbsp;·&nbsp; Vol: {s.vol} &nbsp;·&nbsp; Fired: {s.time}</div>
