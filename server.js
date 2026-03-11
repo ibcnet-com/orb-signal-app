@@ -279,14 +279,11 @@ app.get("/futures", async (req, res) => {
 app.post("/trades",         (req, res) => res.json({ success: true, id: Date.now() }));
 app.patch("/trades/:id",    (req, res) => res.json({ success: true }));
 app.get("/trades",          (req, res) => res.json({ trades: [], stats: { total:0, wins:0, losses:0, winRate:0, totalPnl:0, avgPnl:0 } }));
-app.get("/trades/export",   (req, res) => { res.setHeader("Content-Type","text/csv"); res.send("id,ticker
-"); });
+app.get("/trades/export",   (req, res) => { res.setHeader("Content-Type","text/csv"); res.send("id,ticker\r\n"); });
 
 app.listen(PORT, () => {
-  console.log(`
-✅ ORBsignal server running on port ${PORT}`);
+  console.log(`\n✅ ORBsignal server running on port ${PORT}`);
   console.log(`   /scan    → ORB breakout detection`);
   console.log(`   /quote   → Live prices`);
-  console.log(`   /futures → Futures + pre-market data
-`);
+  console.log(`   /futures → Futures + pre-market data\n`);
 });
