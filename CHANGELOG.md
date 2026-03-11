@@ -4,6 +4,12 @@ All notable changes to ORBsignal are documented here.
 
 ---
 
+## v1.8.0 — 2026-03-10
+- Added configurable Max Risk Per Trade slider in Alert Config ($100–$10,000, default $1,000)
+- Position size and reward calculations on signal cards now use saved max risk value
+- Max risk persists via localStorage across sessions
+- Max risk shown in config summary panel
+
 ## v1.7.0 — 2026-03-10
 - Added Futures tab: live quotes for ES=F, NQ=F, YM=F, RTY=F, CL=F, GC=F, ZB=F
 - Added pre-market watchlist table with gap % vs previous close
