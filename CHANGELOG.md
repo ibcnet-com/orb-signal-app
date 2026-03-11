@@ -4,6 +4,20 @@ All notable changes to ORBsignal are documented here.
 
 ---
 
+## v2.0.1 — 2026-03-11
+- Morning Brief now shows date (e.g. "Tue, Mar 11 · 8:23 AM ET") to avoid confusion
+- Added 🌅 Morning Brief link in footer — opens the card anytime on demand
+- Clicking footer link navigates to Live Signals and forces the brief open regardless of time
+- Dismiss resets both the auto and forced states
+
+## v2.0.0 — 2026-03-11
+- Pre-market Morning Brief card on Live Signals tab (visible 4:00–9:45 AM ET)
+- Shows live index futures: ES, NQ, YM, RTY with price and change %
+- Gap movers table: watchlist tickers sorted by gap size
+- Auto-generated text summary: market bias, crude oil, economic events, gap count
+- Dismiss button to hide brief for the session
+- Brief resets each day automatically
+
 ## v1.9.0 — 2026-03-11
 - Real trade persistence via JSON file storage on Railway (no native deps)
 - Trade log now saves across deploys in /data/trades.json

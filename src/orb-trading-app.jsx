@@ -478,6 +478,82 @@ const style = `
   .ticker-chip-input:focus { border-color: #00d4aa !important; }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+  /* ── Morning Brief ── */
+  .morning-brief {
+    background: linear-gradient(135deg, #080f1a 0%, #0a1628 100%);
+    border: 1px solid #00d4aa33;
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .morning-brief::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 0% 50%, rgba(0,212,170,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .brief-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px;
+  }
+  .brief-title {
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: #00d4aa; display: flex; align-items: center; gap: 8px;
+  }
+  .brief-time {
+    font-size: 10px; color: #2a3a55; font-family: 'Space Mono', monospace;
+  }
+  .brief-dismiss {
+    background: none; border: none; color: #2a3a55; cursor: pointer;
+    font-size: 16px; padding: 2px 6px; transition: color 0.2s;
+  }
+  .brief-dismiss:hover { color: #475569; }
+  .brief-futures {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .brief-future {
+    background: #0f1520; border: 1px solid #1e2a3a;
+    border-radius: 8px; padding: 10px 14px;
+    min-width: 110px; flex: 1;
+  }
+  .brief-future.up   { border-color: #00d4aa33; }
+  .brief-future.down { border-color: #ff4d6d33; }
+  .brief-future-name { font-size: 9px; color: #475569; margin-bottom: 4px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .brief-future-price { font-size: 15px; font-weight: 700; color: #f0f4f8; }
+  .brief-future-chg { font-size: 11px; margin-top: 2px; }
+  .brief-future-chg.up   { color: #00d4aa; }
+  .brief-future-chg.down { color: #ff4d6d; }
+  .brief-future-chg.flat { color: #475569; }
+  .brief-movers { margin-bottom: 16px; }
+  .brief-movers-title { font-size: 9px; color: #475569; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .brief-mover-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 0; border-bottom: 1px solid #0f1520;
+    font-size: 12px;
+  }
+  .brief-mover-row:last-child { border-bottom: none; }
+  .brief-mover-ticker { font-weight: 700; color: #f0f4f8; width: 60px; }
+  .brief-mover-price  { color: #94a3b8; flex: 1; }
+  .brief-mover-gap    { font-weight: 600; min-width: 60px; text-align: right; }
+  .brief-mover-gap.up   { color: #00d4aa; }
+  .brief-mover-gap.down { color: #ff4d6d; }
+  .brief-mover-gap.flat { color: #475569; }
+  .brief-summary {
+    background: #0a0f18; border-radius: 8px; padding: 12px 14px;
+    font-size: 11px; color: #64748b; line-height: 1.7;
+  }
+  .brief-summary strong { color: #e2e8f0; }
+  .brief-summary .tag {
+    display: inline-block; font-size: 9px; padding: 2px 7px;
+    border-radius: 4px; margin: 0 3px; font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .brief-summary .tag.bull { background: rgba(0,212,170,0.1); color: #00d4aa; border: 1px solid #00d4aa33; }
+  .brief-summary .tag.bear { background: rgba(255,77,109,0.1); color: #ff4d6d; border: 1px solid #ff4d6d33; }
+  .brief-summary .tag.warn { background: rgba(250,204,21,0.1); color: #facc15; border: 1px solid #facc1533; }
+
   .app-footer {
     border-top: 1px solid #1e2a3a;
     padding: 28px 32px;
@@ -640,6 +716,24 @@ export default function ORBApp() {
   const [futures, setFutures]             = useState([]);
   const [premarket, setPremarket]         = useState([]);
   const [futuresLoading, setFuturesLoading] = useState(false);
+
+  // Morning brief: visible 4AM–9:45AM ET
+  const [briefDismissed, setBriefDismissed] = useState(false);
+  const [briefForced, setBriefForced]       = useState(false);
+  function isPreMarketHours() {
+    const now = new Date();
+    const et  = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const h   = et.getHours(), m = et.getMinutes();
+    const mins = h * 60 + m;
+    return mins >= 4 * 60 && mins < 9 * 60 + 45; // 4:00AM–9:45AM ET
+  }
+  function showBrief() {
+    setBriefForced(true);
+    setBriefDismissed(false);
+    setTab("signals");
+    window.scrollTo(0, 0);
+    if (futures.length === 0) fetchFutures();
+  }
 
   async function fetchFutures() {
     setFuturesLoading(true);
@@ -1236,6 +1330,84 @@ export default function ORBApp() {
         {/* === SIGNALS TAB === */}
         {tab === "signals" && (
           <div>
+
+            {/* ── Morning Brief ── */}
+            {(isPreMarketHours() || briefForced) && !briefDismissed && futures.length > 0 && (
+              <div className="morning-brief">
+                <div className="brief-header">
+                  <div className="brief-title">
+                    🌅 Pre-Market Morning Brief
+                    <span className="brief-time">
+                      {new Date().toLocaleDateString("en-US", { timeZone:"America/New_York", weekday:"short", month:"short", day:"numeric" })}
+                      {" · "}
+                      {new Date().toLocaleTimeString("en-US", { timeZone:"America/New_York", hour:"2-digit", minute:"2-digit" })} ET
+                    </span>
+                  </div>
+                  <button className="brief-dismiss" onClick={() => { setBriefDismissed(true); setBriefForced(false); }} title="Dismiss">✕</button>
+                </div>
+
+                {/* Index futures */}
+                <div className="brief-futures">
+                  {futures.filter(f => f.category === "index").map(f => (
+                    <div key={f.symbol} className={`brief-future ${f.trend}`}>
+                      <div className="brief-future-name">{f.name}</div>
+                      <div className="brief-future-price">{f.price ? `$${f.price.toLocaleString()}` : "—"}</div>
+                      <div className={`brief-future-chg ${f.trend === "up" ? "up" : f.trend === "down" ? "down" : "flat"}`}>
+                        {f.change != null ? `${f.change > 0 ? "▲" : f.change < 0 ? "▼" : "—"} ${Math.abs(f.change)}%` : "—"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Gap movers */}
+                {premarket.filter(p => Math.abs(p.gapPct || 0) > 0.3).length > 0 && (
+                  <div className="brief-movers">
+                    <div className="brief-movers-title">Gap Movers — Your Watchlist</div>
+                    {premarket
+                      .filter(p => Math.abs(p.gapPct || 0) > 0.3)
+                      .sort((a, b) => Math.abs(b.gapPct) - Math.abs(a.gapPct))
+                      .map(p => (
+                        <div key={p.ticker} className="brief-mover-row">
+                          <span className="brief-mover-ticker">{p.ticker}</span>
+                          <span className="brief-mover-price">${p.prePrice}</span>
+                          <span className={`brief-mover-gap ${p.gapDir}`}>
+                            {p.gapPct > 0 ? "▲" : "▼"} {Math.abs(p.gapPct)}%
+                          </span>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+
+                {/* Auto-generated text summary */}
+                <div className="brief-summary">
+                  {(() => {
+                    const es  = futures.find(f => f.symbol === "ES=F");
+                    const nq  = futures.find(f => f.symbol === "NQ=F");
+                    const cl  = futures.find(f => f.symbol === "CL=F");
+                    const gapUp   = premarket.filter(p => p.gapPct > 0.5).length;
+                    const gapDown = premarket.filter(p => p.gapPct < -0.5).length;
+                    const mktBias = (es?.trend === "up" && nq?.trend === "up") ? "bull"
+                                  : (es?.trend === "down" && nq?.trend === "down") ? "bear"
+                                  : "warn";
+                    return (
+                      <span>
+                        <strong>Market bias:</strong>
+                        <span className={`tag ${mktBias}`}>
+                          {mktBias === "bull" ? "BULLISH" : mktBias === "bear" ? "BEARISH" : "MIXED"}
+                        </span>
+                        {es && <> — S&P futures <strong>{es.change > 0 ? "up" : "down"} {Math.abs(es.change)}%</strong></>}
+                        {nq && <>, Nasdaq <strong>{nq.change > 0 ? "up" : "down"} {Math.abs(nq.change)}%</strong></>}.
+                        {cl && <> Crude oil at <strong>${cl.price}</strong> ({cl.change > 0 ? "+" : ""}{cl.change}%).</>}
+                        {economicEvent?.hasEvent && <> <span className="tag warn">⚠ {economicEvent.label}</span> today — trade smaller.</>}
+                        {(gapUp > 0 || gapDown > 0) && <> {gapUp > 0 && <><strong>{gapUp}</strong> ticker{gapUp > 1 ? "s" : ""} gapping up.</>} {gapDown > 0 && <><strong>{gapDown}</strong> gapping down.</>}</>}
+                        {" "}ORB window opens at <strong>9:30 AM ET</strong>.
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
             <div className="card" style={{marginBottom:20}}>
               <div className="card-title">Today's ORB Signals</div>
               <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16}}>
@@ -1682,6 +1854,7 @@ export default function ORBApp() {
             <a href="#" onClick={e => { e.preventDefault(); setTab("futures"); fetchFutures(); window.scrollTo(0,0); }}>📈 Futures</a>
             <a href="#" onClick={e => { e.preventDefault(); setTab("tradelog"); fetchTradeLog(); window.scrollTo(0,0); }}>📋 Trade Log</a>
             <a href="#" onClick={e => { e.preventDefault(); setTab("configure"); window.scrollTo(0,0); }}>⚙️ Alert Config</a>
+            <a href="#" onClick={e => { e.preventDefault(); showBrief(); }}>🌅 Morning Brief</a>
           </nav>
           <div className="footer-bottom">
             <div className="footer-copy">
@@ -1689,7 +1862,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v1.9.0
+                v2.0.1
               </a>
             </div>
           </div>

@@ -543,11 +543,104 @@ app.get("/futures", async (req, res) => {
   });
 });
 
-// Trade log stubs — will be replaced when SQLite is added back
-app.post("/trades",         (req, res) => res.json({ success: true, id: Date.now() }));
-app.patch("/trades/:id",    (req, res) => res.json({ success: true }));
-app.get("/trades",          (req, res) => res.json({ trades: [], stats: { total:0, wins:0, losses:0, winRate:0, totalPnl:0, avgPnl:0 } }));
-app.get("/trades/export",   (req, res) => { res.setHeader("Content-Type","text/csv"); res.send("id,ticker\n"); });
+// ─── Trade Log (JSON file persistence) ───────────────────────────────────────
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR  = join(__dirname, "data");
+const DB_FILE   = join(DATA_DIR, "trades.json");
+
+function loadTrades() {
+  try {
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    if (!existsSync(DB_FILE))  writeFileSync(DB_FILE, "[]", "utf8");
+    return JSON.parse(readFileSync(DB_FILE, "utf8"));
+  } catch { return []; }
+}
+
+function saveTrades(trades) {
+  try {
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(DB_FILE, JSON.stringify(trades, null, 2), "utf8");
+  } catch (e) { console.error("Save error:", e.message); }
+}
+
+function calcStats(trades) {
+  const closed = trades.filter(t => t.status === "closed");
+  const wins   = closed.filter(t => t.outcome === "win").length;
+  const losses = closed.filter(t => t.outcome === "loss").length;
+  const totalPnl = closed.reduce((s, t) => s + (t.pnl || 0), 0);
+  return {
+    total:    closed.length,
+    wins,
+    losses,
+    winRate:  closed.length ? +((wins / closed.length) * 100).toFixed(1) : 0,
+    totalPnl: +totalPnl.toFixed(2),
+    avgPnl:   closed.length ? +(totalPnl / closed.length).toFixed(2) : 0,
+  };
+}
+
+app.post("/trades", (req, res) => {
+  const trades = loadTrades();
+  const trade  = {
+    id:        Date.now(),
+    ticker:    req.body.ticker    || "",
+    dir:       req.body.dir       || "",
+    entry:     req.body.entry     || null,
+    stop:      req.body.stop      || null,
+    target1:   req.body.target1   || null,
+    target2:   req.body.target2   || null,
+    shares:    req.body.shares    || null,
+    riskAmt:   req.body.riskAmt   || null,
+    status:    "open",
+    outcome:   null,
+    exitPrice: null,
+    pnl:       null,
+    loggedAt:  new Date().toISOString(),
+    closedAt:  null,
+  };
+  trades.unshift(trade);
+  saveTrades(trades);
+  res.json({ success: true, id: trade.id });
+});
+
+app.patch("/trades/:id", (req, res) => {
+  const trades = loadTrades();
+  const idx    = trades.findIndex(t => t.id === Number(req.params.id));
+  if (idx === -1) return res.status(404).json({ error: "Not found" });
+  const t      = trades[idx];
+  t.status     = "closed";
+  t.outcome    = req.body.outcome   || "loss";
+  t.exitPrice  = req.body.exitPrice || null;
+  t.closedAt   = new Date().toISOString();
+  if (t.exitPrice && t.entry && t.shares) {
+    const diff = t.dir === "long"
+      ? (t.exitPrice - t.entry) * t.shares
+      : (t.entry - t.exitPrice) * t.shares;
+    t.pnl = +diff.toFixed(2);
+  }
+  trades[idx] = t;
+  saveTrades(trades);
+  res.json({ success: true, trade: t });
+});
+
+app.get("/trades", (req, res) => {
+  const trades = loadTrades();
+  res.json({ trades, stats: calcStats(trades) });
+});
+
+app.get("/trades/export", (req, res) => {
+  const trades = loadTrades();
+  const header = "id,ticker,dir,entry,stop,target1,shares,status,outcome,exitPrice,pnl,loggedAt,closedAt";
+  const rows   = trades.map(t =>
+    [t.id,t.ticker,t.dir,t.entry,t.stop,t.target1,t.shares,t.status,t.outcome,t.exitPrice,t.pnl,t.loggedAt,t.closedAt].join(",")
+  );
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", "attachment; filename=trades.csv");
+  res.send([header, ...rows].join("\r\n"));
+});
 
 app.listen(PORT, () => {
   console.log(\`\n✅ ORBsignal server running on port \${PORT}\`);
@@ -730,9 +823,96 @@ const style = \`
   }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
-  @media(max-width:640px) {
-    .grid-2 { grid-template-columns: 1fr; }
+
+  /* ── Mobile bottom tab bar ── */
+  .bottom-nav {
+    display: none;
+  }
+
+  @media(max-width:768px) {
+    /* Global */
+    body { padding-bottom: 72px; }
+
+    /* Hero */
+    .hero { padding: 32px 16px 24px; }
+    .hero h1 { font-size: 28px; }
+    .hero p  { font-size: 12px; }
+
+    /* Hide desktop tabs, show bottom nav */
+    .tabs { display: none !important; }
+    .bottom-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(9,12,16,0.97);
+      border-top: 1px solid #1e2a3a;
+      z-index: 100;
+      padding: 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .bottom-nav button {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 3px;
+      padding: 10px 4px 8px;
+      background: transparent; border: none;
+      color: #475569; cursor: pointer;
+      font-family: 'Space Mono', monospace;
+      font-size: 8px; letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .bottom-nav button.active { color: #00d4aa; }
+    .bottom-nav button .nav-icon { font-size: 18px; line-height: 1; }
+
+    /* Layout */
+    .app-wrap { padding: 0 12px; }
+    main { padding: 12px 0 0; }
+
+    /* Cards */
+    .card { padding: 16px; border-radius: 10px; margin-bottom: 14px; }
+    .card-title { font-size: 9px; }
+
+    /* Grids */
+    .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+    .grid-3 { grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Header bar */
+    .quote-bar { gap: 12px; padding: 10px 12px; font-size: 10px; flex-wrap: wrap; }
+    .header-actions { gap: 8px; }
+
+    /* Signal cards */
+    .signal-card { padding: 14px; }
+    .tb-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .rule-badges { gap: 6px; }
+    .rule-badge { font-size: 9px; padding: 3px 6px; }
+
+    /* Trade log table — stack on mobile */
+    table { font-size: 11px; }
+    table th, table td { padding: 8px 6px; }
+
+    /* Footer — hide on mobile (bottom nav replaces it) */
+    .app-footer { display: none; }
+
+    /* Config sliders */
+    .slider-row { margin: 12px 0; }
+
+    /* Futures grid */
+    .futures-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+
+    /* Stats bar */
+    .stats-bar { gap: 10px; flex-wrap: wrap; }
+    .stat-pill { font-size: 10px; padding: 6px 10px; }
+
+    /* Watchlist chips */
+    .ticker-chip { font-size: 10px; padding: 4px 8px; }
+  }
+
+  @media(max-width:400px) {
     .grid-3 { grid-template-columns: 1fr; }
+    .futures-grid { grid-template-columns: 1fr !important; }
+    .tb-grid { grid-template-columns: 1fr; }
   }
 
   /* ORB Chart Visual */
@@ -995,6 +1175,82 @@ const style = \`
   .ticker-chip-input:focus { border-color: #00d4aa !important; }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+  /* ── Morning Brief ── */
+  .morning-brief {
+    background: linear-gradient(135deg, #080f1a 0%, #0a1628 100%);
+    border: 1px solid #00d4aa33;
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .morning-brief::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 0% 50%, rgba(0,212,170,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .brief-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px;
+  }
+  .brief-title {
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: #00d4aa; display: flex; align-items: center; gap: 8px;
+  }
+  .brief-time {
+    font-size: 10px; color: #2a3a55; font-family: 'Space Mono', monospace;
+  }
+  .brief-dismiss {
+    background: none; border: none; color: #2a3a55; cursor: pointer;
+    font-size: 16px; padding: 2px 6px; transition: color 0.2s;
+  }
+  .brief-dismiss:hover { color: #475569; }
+  .brief-futures {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .brief-future {
+    background: #0f1520; border: 1px solid #1e2a3a;
+    border-radius: 8px; padding: 10px 14px;
+    min-width: 110px; flex: 1;
+  }
+  .brief-future.up   { border-color: #00d4aa33; }
+  .brief-future.down { border-color: #ff4d6d33; }
+  .brief-future-name { font-size: 9px; color: #475569; margin-bottom: 4px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .brief-future-price { font-size: 15px; font-weight: 700; color: #f0f4f8; }
+  .brief-future-chg { font-size: 11px; margin-top: 2px; }
+  .brief-future-chg.up   { color: #00d4aa; }
+  .brief-future-chg.down { color: #ff4d6d; }
+  .brief-future-chg.flat { color: #475569; }
+  .brief-movers { margin-bottom: 16px; }
+  .brief-movers-title { font-size: 9px; color: #475569; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .brief-mover-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 0; border-bottom: 1px solid #0f1520;
+    font-size: 12px;
+  }
+  .brief-mover-row:last-child { border-bottom: none; }
+  .brief-mover-ticker { font-weight: 700; color: #f0f4f8; width: 60px; }
+  .brief-mover-price  { color: #94a3b8; flex: 1; }
+  .brief-mover-gap    { font-weight: 600; min-width: 60px; text-align: right; }
+  .brief-mover-gap.up   { color: #00d4aa; }
+  .brief-mover-gap.down { color: #ff4d6d; }
+  .brief-mover-gap.flat { color: #475569; }
+  .brief-summary {
+    background: #0a0f18; border-radius: 8px; padding: 12px 14px;
+    font-size: 11px; color: #64748b; line-height: 1.7;
+  }
+  .brief-summary strong { color: #e2e8f0; }
+  .brief-summary .tag {
+    display: inline-block; font-size: 9px; padding: 2px 7px;
+    border-radius: 4px; margin: 0 3px; font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .brief-summary .tag.bull { background: rgba(0,212,170,0.1); color: #00d4aa; border: 1px solid #00d4aa33; }
+  .brief-summary .tag.bear { background: rgba(255,77,109,0.1); color: #ff4d6d; border: 1px solid #ff4d6d33; }
+  .brief-summary .tag.warn { background: rgba(250,204,21,0.1); color: #facc15; border: 1px solid #facc1533; }
+
   .app-footer {
     border-top: 1px solid #1e2a3a;
     padding: 28px 32px;
@@ -1157,6 +1413,24 @@ export default function ORBApp() {
   const [futures, setFutures]             = useState([]);
   const [premarket, setPremarket]         = useState([]);
   const [futuresLoading, setFuturesLoading] = useState(false);
+
+  // Morning brief: visible 4AM–9:45AM ET
+  const [briefDismissed, setBriefDismissed] = useState(false);
+  const [briefForced, setBriefForced]       = useState(false);
+  function isPreMarketHours() {
+    const now = new Date();
+    const et  = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const h   = et.getHours(), m = et.getMinutes();
+    const mins = h * 60 + m;
+    return mins >= 4 * 60 && mins < 9 * 60 + 45; // 4:00AM–9:45AM ET
+  }
+  function showBrief() {
+    setBriefForced(true);
+    setBriefDismissed(false);
+    setTab("signals");
+    window.scrollTo(0, 0);
+    if (futures.length === 0) fetchFutures();
+  }
 
   async function fetchFutures() {
     setFuturesLoading(true);
@@ -1753,6 +2027,84 @@ export default function ORBApp() {
         {/* === SIGNALS TAB === */}
         {tab === "signals" && (
           <div>
+
+            {/* ── Morning Brief ── */}
+            {(isPreMarketHours() || briefForced) && !briefDismissed && futures.length > 0 && (
+              <div className="morning-brief">
+                <div className="brief-header">
+                  <div className="brief-title">
+                    🌅 Pre-Market Morning Brief
+                    <span className="brief-time">
+                      {new Date().toLocaleDateString("en-US", { timeZone:"America/New_York", weekday:"short", month:"short", day:"numeric" })}
+                      {" · "}
+                      {new Date().toLocaleTimeString("en-US", { timeZone:"America/New_York", hour:"2-digit", minute:"2-digit" })} ET
+                    </span>
+                  </div>
+                  <button className="brief-dismiss" onClick={() => { setBriefDismissed(true); setBriefForced(false); }} title="Dismiss">✕</button>
+                </div>
+
+                {/* Index futures */}
+                <div className="brief-futures">
+                  {futures.filter(f => f.category === "index").map(f => (
+                    <div key={f.symbol} className={\`brief-future \${f.trend}\`}>
+                      <div className="brief-future-name">{f.name}</div>
+                      <div className="brief-future-price">{f.price ? \`$\${f.price.toLocaleString()}\` : "—"}</div>
+                      <div className={\`brief-future-chg \${f.trend === "up" ? "up" : f.trend === "down" ? "down" : "flat"}\`}>
+                        {f.change != null ? \`\${f.change > 0 ? "▲" : f.change < 0 ? "▼" : "—"} \${Math.abs(f.change)}%\` : "—"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Gap movers */}
+                {premarket.filter(p => Math.abs(p.gapPct || 0) > 0.3).length > 0 && (
+                  <div className="brief-movers">
+                    <div className="brief-movers-title">Gap Movers — Your Watchlist</div>
+                    {premarket
+                      .filter(p => Math.abs(p.gapPct || 0) > 0.3)
+                      .sort((a, b) => Math.abs(b.gapPct) - Math.abs(a.gapPct))
+                      .map(p => (
+                        <div key={p.ticker} className="brief-mover-row">
+                          <span className="brief-mover-ticker">{p.ticker}</span>
+                          <span className="brief-mover-price">\${p.prePrice}</span>
+                          <span className={\`brief-mover-gap \${p.gapDir}\`}>
+                            {p.gapPct > 0 ? "▲" : "▼"} {Math.abs(p.gapPct)}%
+                          </span>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+
+                {/* Auto-generated text summary */}
+                <div className="brief-summary">
+                  {(() => {
+                    const es  = futures.find(f => f.symbol === "ES=F");
+                    const nq  = futures.find(f => f.symbol === "NQ=F");
+                    const cl  = futures.find(f => f.symbol === "CL=F");
+                    const gapUp   = premarket.filter(p => p.gapPct > 0.5).length;
+                    const gapDown = premarket.filter(p => p.gapPct < -0.5).length;
+                    const mktBias = (es?.trend === "up" && nq?.trend === "up") ? "bull"
+                                  : (es?.trend === "down" && nq?.trend === "down") ? "bear"
+                                  : "warn";
+                    return (
+                      <span>
+                        <strong>Market bias:</strong>
+                        <span className={\`tag \${mktBias}\`}>
+                          {mktBias === "bull" ? "BULLISH" : mktBias === "bear" ? "BEARISH" : "MIXED"}
+                        </span>
+                        {es && <> — S&P futures <strong>{es.change > 0 ? "up" : "down"} {Math.abs(es.change)}%</strong></>}
+                        {nq && <>, Nasdaq <strong>{nq.change > 0 ? "up" : "down"} {Math.abs(nq.change)}%</strong></>}.
+                        {cl && <> Crude oil at <strong>\${cl.price}</strong> ({cl.change > 0 ? "+" : ""}{cl.change}%).</>}
+                        {economicEvent?.hasEvent && <> <span className="tag warn">⚠ {economicEvent.label}</span> today — trade smaller.</>}
+                        {(gapUp > 0 || gapDown > 0) && <> {gapUp > 0 && <><strong>{gapUp}</strong> ticker{gapUp > 1 ? "s" : ""} gapping up.</>} {gapDown > 0 && <><strong>{gapDown}</strong> gapping down.</>}</>}
+                        {" "}ORB window opens at <strong>9:30 AM ET</strong>.
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
             <div className="card" style={{marginBottom:20}}>
               <div className="card-title">Today's ORB Signals</div>
               <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16}}>
@@ -2199,6 +2551,7 @@ export default function ORBApp() {
             <a href="#" onClick={e => { e.preventDefault(); setTab("futures"); fetchFutures(); window.scrollTo(0,0); }}>📈 Futures</a>
             <a href="#" onClick={e => { e.preventDefault(); setTab("tradelog"); fetchTradeLog(); window.scrollTo(0,0); }}>📋 Trade Log</a>
             <a href="#" onClick={e => { e.preventDefault(); setTab("configure"); window.scrollTo(0,0); }}>⚙️ Alert Config</a>
+            <a href="#" onClick={e => { e.preventDefault(); showBrief(); }}>🌅 Morning Brief</a>
           </nav>
           <div className="footer-bottom">
             <div className="footer-copy">
@@ -2206,12 +2559,35 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v1.8.0
+                v2.0.1
               </a>
             </div>
           </div>
         </div>
       </footer>
+
+      {/* ── Mobile bottom tab bar ── */}
+      <nav className="bottom-nav">
+        {[
+          { id: "learn",     icon: "📖", label: "How To" },
+          { id: "signals",   icon: "⚡", label: "Signals" },
+          { id: "futures",   icon: "📈", label: "Futures" },
+          { id: "tradelog",  icon: "📋", label: "Log" },
+          { id: "configure", icon: "⚙️", label: "Config" },
+        ].map(t => (
+          <button key={t.id}
+            className={tab === t.id ? "active" : ""}
+            onClick={() => {
+              setTab(t.id);
+              if (t.id === "tradelog") fetchTradeLog();
+              if (t.id === "futures")  fetchFutures();
+              window.scrollTo(0, 0);
+            }}>
+            <span className="nav-icon">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
