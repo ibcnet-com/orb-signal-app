@@ -4,11 +4,6 @@
 param([string]$msg = "update build")
 
 Write-Host ""
-Write-Host "Running scaffold..." -ForegroundColor Cyan
-$yInput = "y`ny`ny`ny`ny`ny`ny`ny`ny`ny`n"
-$yInput | node scaffold.js
-
-Write-Host ""
 Write-Host "Building..." -ForegroundColor Cyan
 npm run build
 

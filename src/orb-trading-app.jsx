@@ -571,6 +571,7 @@ export default function ORBApp() {
   const [scanError, setScanError] = useState(null);
   const [orbWindow, setOrbWindow] = useState(() => loadFromStorage("orb_window", 15));
   const [volFilter, setVolFilter] = useState(() => loadFromStorage("orb_volfilter", 150));
+  const [maxRisk, setMaxRisk]     = useState(() => loadFromStorage("orb_maxrisk", 1000));
   const [alertSound, setAlertSound] = useState(() => loadFromStorage("orb_alertsound", true));
   const [alertEmail, setAlertEmail] = useState(() => loadFromStorage("orb_alertemail", false));
   const [alertPush, setAlertPush] = useState(() => loadFromStorage("orb_alertpush", true));
@@ -650,6 +651,7 @@ export default function ORBApp() {
       localStorage.setItem("orb_watchlist", JSON.stringify(watchlist));
       localStorage.setItem("orb_window", JSON.stringify(orbWindow));
       localStorage.setItem("orb_volfilter", JSON.stringify(volFilter));
+      localStorage.setItem("orb_maxrisk", JSON.stringify(maxRisk));
       localStorage.setItem("orb_alertsound", JSON.stringify(alertSound));
       localStorage.setItem("orb_alertemail", JSON.stringify(alertEmail));
       localStorage.setItem("orb_alertpush", JSON.stringify(alertPush));
@@ -662,11 +664,12 @@ export default function ORBApp() {
     setWatchlist(DEFAULT_WATCHLIST);
     setOrbWindow(15);
     setVolFilter(150);
+    setMaxRisk(1000);
     setAlertSound(true);
     setAlertEmail(false);
     setAlertPush(true);
     try {
-      ["orb_watchlist","orb_window","orb_volfilter","orb_alertsound","orb_alertemail","orb_alertpush"]
+      ["orb_watchlist","orb_window","orb_volfilter","orb_maxrisk","orb_alertsound","orb_alertemail","orb_alertpush"]
         .forEach(k => localStorage.removeItem(k));
     } catch {}
   }
@@ -805,8 +808,6 @@ export default function ORBApp() {
 
   const confBadge = c => <span className={`badge ${c}`}>{c === "high" ? "High Conf" : c === "med" ? "Med Conf" : "Low Conf"}</span>;
 
-  const RISK = 1000; // max risk per trade in dollars
-
   function calcTrade(s) {
     const entry    = s.price;
     const orbRange = s.orbHigh - s.orbLow;
@@ -815,7 +816,7 @@ export default function ORBApp() {
       ? +(s.orbHigh - orbRange * 0.1).toFixed(2)
       : +(s.orbLow  + orbRange * 0.1).toFixed(2);
     const riskPerShare = Math.abs(entry - stop);
-    const shares   = riskPerShare > 0 ? Math.floor(RISK / riskPerShare) : 0;
+    const shares   = riskPerShare > 0 ? Math.floor(maxRisk / riskPerShare) : 0;
     // Target 1: 2:1 fixed R/R
     const t1 = s.dir === "long"
       ? +(entry + riskPerShare * 2).toFixed(2)
@@ -886,7 +887,7 @@ export default function ORBApp() {
             <div className="tb-label">Position Size</div>
             <div className="tb-value">{t.shares} shares</div>
             <div className="tb-value">${(t.shares * t.entry).toLocaleString("en-US", {maximumFractionDigits:0})}</div>
-            <div className="tb-sub">~$1,000 max risk</div>
+            <div className="tb-sub">~${maxRisk.toLocaleString()} max risk</div>
           </div>
         </div>
 
@@ -1470,6 +1471,17 @@ export default function ORBApp() {
                   <input type="range" min="100" max="400" step="10" value={volFilter}
                     onChange={e => setVolFilter(Number(e.target.value))} />
                 </div>
+                <div className="slider-row">
+                  <label>Max Risk Per Trade <span style={{color:"#facc15"}}>${maxRisk.toLocaleString()}</span></label>
+                  <input type="range" min="100" max="10000" step="100" value={maxRisk}
+                    onChange={e => setMaxRisk(Number(e.target.value))} />
+                  <div style={{display:"flex", justifyContent:"space-between", fontSize:10, color:"#2a3a55", marginTop:4}}>
+                    <span>$100</span>
+                    <span>$2,500</span>
+                    <span>$5,000</span>
+                    <span>$10,000</span>
+                  </div>
+                </div>
                 <div style={{marginBottom:16}}>
                   <div className="card-title" style={{marginBottom:10}}>Watchlist</div>
                   <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:10}}>
@@ -1559,6 +1571,10 @@ export default function ORBApp() {
                   <span className="config-label">Volume Threshold</span>
                   <span className="config-value">{volFilter}%</span>
                 </div>
+                <div className="config-row">
+                  <span className="config-label">Max Risk Per Trade</span>
+                  <span className="config-value" style={{color:"#facc15"}}>${maxRisk.toLocaleString()}</span>
+                </div>
                 <button className="btn btn-primary" onClick={saveConfig} style={{marginTop:20, width:"100%"}}>
                   {saveFlash ? "✓ Saved!" : "Save Configuration"}
                 </button>
@@ -1586,7 +1602,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v1.7.0
+                v1.8.0
               </a>
             </div>
           </div>
