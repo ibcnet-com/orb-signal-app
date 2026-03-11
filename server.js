@@ -207,6 +207,74 @@ app.get("/quote", async (req, res) => {
   res.json({ quotes: results.filter(r => r.status === "fulfilled").map(r => r.value) });
 });
 
+// ─── Futures quotes ───────────────────────────────────────────────────────────
+const FUTURES = [
+  { symbol: "ES=F",  name: "S&P 500",      category: "index" },
+  { symbol: "NQ=F",  name: "Nasdaq 100",   category: "index" },
+  { symbol: "YM=F",  name: "Dow Jones",    category: "index" },
+  { symbol: "RTY=F", name: "Russell 2000", category: "index" },
+  { symbol: "CL=F",  name: "Crude Oil",    category: "commodity" },
+  { symbol: "GC=F",  name: "Gold",         category: "commodity" },
+  { symbol: "ZB=F",  name: "Treasury 30Y", category: "bond" },
+];
+
+async function fetchFuturesQuote(symbol, name, category) {
+  try {
+    // Use longer range to get prev close for accurate change %
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=5m&range=2d&includePrePost=true`;
+    const res  = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+    });
+    if (!res.ok) return { symbol, name, category, price: null, change: null, prevClose: null };
+    const json     = await res.json();
+    const result   = json?.chart?.result?.[0];
+    if (!result)   return { symbol, name, category, price: null, change: null };
+    const closes   = result.indicators.quote[0].close.filter(Boolean);
+    const meta     = result.meta;
+    const price    = +(meta.regularMarketPrice ?? closes[closes.length - 1]).toFixed(2);
+    const prevClose = +(meta.chartPreviousClose ?? meta.previousClose ?? closes[0]).toFixed(2);
+    const change   = prevClose ? +(((price - prevClose) / prevClose) * 100).toFixed(2) : null;
+    const high     = meta.regularMarketDayHigh ? +meta.regularMarketDayHigh.toFixed(2) : null;
+    const low      = meta.regularMarketDayLow  ? +meta.regularMarketDayLow.toFixed(2)  : null;
+    const trend    = change > 0.3 ? "up" : change < -0.3 ? "down" : "flat";
+    return { symbol, name, category, price, prevClose, change, high, low, trend };
+  } catch (e) {
+    return { symbol, name, category, price: null, change: null, error: e.message };
+  }
+}
+
+async function fetchPremarket(ticker) {
+  try {
+    const url  = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=5m&range=2d&includePrePost=true`;
+    const res  = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
+    if (!res.ok) return { ticker, prePrice: null, gapPct: null };
+    const json   = await res.json();
+    const result = json?.chart?.result?.[0];
+    if (!result) return { ticker, prePrice: null, gapPct: null };
+    const meta      = result.meta;
+    const prevClose = +(meta.chartPreviousClose ?? meta.previousClose ?? 0).toFixed(2);
+    const prePrice  = +(meta.preMarketPrice ?? meta.regularMarketPrice ?? 0).toFixed(2);
+    const gapPct    = prevClose ? +(((prePrice - prevClose) / prevClose) * 100).toFixed(2) : null;
+    const gapDir    = gapPct > 0.5 ? "up" : gapPct < -0.5 ? "down" : "flat";
+    return { ticker, prePrice, prevClose, gapPct, gapDir };
+  } catch {
+    return { ticker, prePrice: null, gapPct: null };
+  }
+}
+
+app.get("/futures", async (req, res) => {
+  const watchlist = (req.query.tickers || "").split(",").map(t => t.trim().toUpperCase()).filter(Boolean);
+  const [futuresResults, premarketResults] = await Promise.all([
+    Promise.allSettled(FUTURES.map(f => fetchFuturesQuote(f.symbol, f.name, f.category))),
+    Promise.allSettled(watchlist.map(t => fetchPremarket(t))),
+  ]);
+  res.json({
+    futures:   futuresResults.filter(r => r.status === "fulfilled").map(r => r.value),
+    premarket: premarketResults.filter(r => r.status === "fulfilled").map(r => r.value),
+    fetchedAt: new Date().toISOString(),
+  });
+});
+
 // Trade log stubs — will be replaced when SQLite is added back
 app.post("/trades",         (req, res) => res.json({ success: true, id: Date.now() }));
 app.patch("/trades/:id",    (req, res) => res.json({ success: true }));
@@ -217,7 +285,8 @@ app.get("/trades/export",   (req, res) => { res.setHeader("Content-Type","text/c
 app.listen(PORT, () => {
   console.log(`
 ✅ ORBsignal server running on port ${PORT}`);
-  console.log(`   /scan  → ORB breakout detection`);
-  console.log(`   /quote → Live prices
+  console.log(`   /scan    → ORB breakout detection`);
+  console.log(`   /quote   → Live prices`);
+  console.log(`   /futures → Futures + pre-market data
 `);
 });

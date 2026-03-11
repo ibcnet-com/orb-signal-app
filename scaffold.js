@@ -475,6 +475,74 @@ app.get("/quote", async (req, res) => {
   res.json({ quotes: results.filter(r => r.status === "fulfilled").map(r => r.value) });
 });
 
+// ─── Futures quotes ───────────────────────────────────────────────────────────
+const FUTURES = [
+  { symbol: "ES=F",  name: "S&P 500",      category: "index" },
+  { symbol: "NQ=F",  name: "Nasdaq 100",   category: "index" },
+  { symbol: "YM=F",  name: "Dow Jones",    category: "index" },
+  { symbol: "RTY=F", name: "Russell 2000", category: "index" },
+  { symbol: "CL=F",  name: "Crude Oil",    category: "commodity" },
+  { symbol: "GC=F",  name: "Gold",         category: "commodity" },
+  { symbol: "ZB=F",  name: "Treasury 30Y", category: "bond" },
+];
+
+async function fetchFuturesQuote(symbol, name, category) {
+  try {
+    // Use longer range to get prev close for accurate change %
+    const url = \`https://query1.finance.yahoo.com/v8/finance/chart/\${symbol}?interval=5m&range=2d&includePrePost=true\`;
+    const res  = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+    });
+    if (!res.ok) return { symbol, name, category, price: null, change: null, prevClose: null };
+    const json     = await res.json();
+    const result   = json?.chart?.result?.[0];
+    if (!result)   return { symbol, name, category, price: null, change: null };
+    const closes   = result.indicators.quote[0].close.filter(Boolean);
+    const meta     = result.meta;
+    const price    = +(meta.regularMarketPrice ?? closes[closes.length - 1]).toFixed(2);
+    const prevClose = +(meta.chartPreviousClose ?? meta.previousClose ?? closes[0]).toFixed(2);
+    const change   = prevClose ? +(((price - prevClose) / prevClose) * 100).toFixed(2) : null;
+    const high     = meta.regularMarketDayHigh ? +meta.regularMarketDayHigh.toFixed(2) : null;
+    const low      = meta.regularMarketDayLow  ? +meta.regularMarketDayLow.toFixed(2)  : null;
+    const trend    = change > 0.3 ? "up" : change < -0.3 ? "down" : "flat";
+    return { symbol, name, category, price, prevClose, change, high, low, trend };
+  } catch (e) {
+    return { symbol, name, category, price: null, change: null, error: e.message };
+  }
+}
+
+async function fetchPremarket(ticker) {
+  try {
+    const url  = \`https://query1.finance.yahoo.com/v8/finance/chart/\${ticker}?interval=5m&range=2d&includePrePost=true\`;
+    const res  = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
+    if (!res.ok) return { ticker, prePrice: null, gapPct: null };
+    const json   = await res.json();
+    const result = json?.chart?.result?.[0];
+    if (!result) return { ticker, prePrice: null, gapPct: null };
+    const meta      = result.meta;
+    const prevClose = +(meta.chartPreviousClose ?? meta.previousClose ?? 0).toFixed(2);
+    const prePrice  = +(meta.preMarketPrice ?? meta.regularMarketPrice ?? 0).toFixed(2);
+    const gapPct    = prevClose ? +(((prePrice - prevClose) / prevClose) * 100).toFixed(2) : null;
+    const gapDir    = gapPct > 0.5 ? "up" : gapPct < -0.5 ? "down" : "flat";
+    return { ticker, prePrice, prevClose, gapPct, gapDir };
+  } catch {
+    return { ticker, prePrice: null, gapPct: null };
+  }
+}
+
+app.get("/futures", async (req, res) => {
+  const watchlist = (req.query.tickers || "").split(",").map(t => t.trim().toUpperCase()).filter(Boolean);
+  const [futuresResults, premarketResults] = await Promise.all([
+    Promise.allSettled(FUTURES.map(f => fetchFuturesQuote(f.symbol, f.name, f.category))),
+    Promise.allSettled(watchlist.map(t => fetchPremarket(t))),
+  ]);
+  res.json({
+    futures:   futuresResults.filter(r => r.status === "fulfilled").map(r => r.value),
+    premarket: premarketResults.filter(r => r.status === "fulfilled").map(r => r.value),
+    fetchedAt: new Date().toISOString(),
+  });
+});
+
 // Trade log stubs — will be replaced when SQLite is added back
 app.post("/trades",         (req, res) => res.json({ success: true, id: Date.now() }));
 app.patch("/trades/:id",    (req, res) => res.json({ success: true }));
@@ -483,8 +551,9 @@ app.get("/trades/export",   (req, res) => { res.setHeader("Content-Type","text/c
 
 app.listen(PORT, () => {
   console.log(\`\n✅ ORBsignal server running on port \${PORT}\`);
-  console.log(\`   /scan  → ORB breakout detection\`);
-  console.log(\`   /quote → Live prices\n\`);
+  console.log(\`   /scan    → ORB breakout detection\`);
+  console.log(\`   /quote   → Live prices\`);
+  console.log(\`   /futures → Futures + pre-market data\n\`);
 });
 `
   },
@@ -1083,8 +1152,23 @@ export default function ORBApp() {
   const [tab, setTab] = useState("learn");
   const [signals, setSignals] = useState([]);
   const [noBreakout, setNoBreakout] = useState([]);
-  const [spyTrend, setSpyTrend]         = useState(null);
+  const [spyTrend, setSpyTrend]           = useState(null);
   const [economicEvent, setEconomicEvent] = useState(null);
+  const [futures, setFutures]             = useState([]);
+  const [premarket, setPremarket]         = useState([]);
+  const [futuresLoading, setFuturesLoading] = useState(false);
+
+  async function fetchFutures() {
+    setFuturesLoading(true);
+    try {
+      const tickers = watchlist.join(",");
+      const r    = await fetch(\`\${API}/futures?tickers=\${tickers}\`);
+      const data = await r.json();
+      setFutures(data.futures || []);
+      setPremarket(data.premarket || []);
+    } catch {}
+    setFuturesLoading(false);
+  }
   const [quotes, setQuotes] = useState({});
   const [scanning, setScanning] = useState(false);
   const [lastScanned, setLastScanned] = useState(null);
@@ -1291,14 +1375,16 @@ export default function ORBApp() {
   // Auto-scan on mount and every 60 seconds
   useEffect(() => {
     alertedTickers.current.clear();
-    signalFireTimes.current = {}; // reset fire times on new scan session
+    signalFireTimes.current = {};
     fetchQuotes();
     runScan();
     fetchTradeLog();
-    const quoteInt = setInterval(fetchQuotes, 30000);
-    const scanInt  = setInterval(runScan, 60000);
-    const logInt   = setInterval(fetchTradeLog, 60000);
-    return () => { clearInterval(quoteInt); clearInterval(scanInt); clearInterval(logInt); };
+    fetchFutures();
+    const quoteInt   = setInterval(fetchQuotes, 30000);
+    const scanInt    = setInterval(runScan, 60000);
+    const logInt     = setInterval(fetchTradeLog, 60000);
+    const futuresInt = setInterval(fetchFutures, 60000);
+    return () => { clearInterval(quoteInt); clearInterval(scanInt); clearInterval(logInt); clearInterval(futuresInt); };
   }, [watchlist, orbWindow, volFilter]);
 
   function runSim() {
@@ -1539,10 +1625,11 @@ export default function ORBApp() {
           {[
             { id: "learn",     label: "📖 How It Works" },
             { id: "signals",   label: <span>⚡ Live Signals {newSignalFlash ? "🟢" : ""}</span> },
+            { id: "futures",   label: "📈 Futures" },
             { id: "tradelog",  label: "📋 Trade Log" },
             { id: "configure", label: "⚙️ Alert Config" },
           ].map(t => (
-            <button key={t.id} className={\`tab \${tab===t.id?"active":""}\`} onClick={()=>{ setTab(t.id); if(t.id==="tradelog") fetchTradeLog(); }}>
+            <button key={t.id} className={\`tab \${tab===t.id?"active":""}\`} onClick={()=>{ setTab(t.id); if(t.id==="tradelog") fetchTradeLog(); if(t.id==="futures") fetchFutures(); }}>
               {t.label}
             </button>
           ))}
@@ -1743,6 +1830,105 @@ export default function ORBApp() {
                 <div><span className="badge med">Med Conf</span> 120–200% volume</div>
                 <div><span className="badge low">Low Conf</span> Under 120% — caution</div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* === FUTURES TAB === */}
+        {tab === "futures" && (
+          <div>
+            {/* Futures grid */}
+            <div className="card" style={{marginBottom:20}}>
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
+                <div className="card-title">Futures Markets</div>
+                <button className="btn btn-ghost" onClick={fetchFutures}
+                  style={{fontSize:10, padding:"6px 12px"}}>
+                  {futuresLoading ? "⟳ Loading..." : "↺ Refresh"}
+                </button>
+              </div>
+              {futures.length === 0 && !futuresLoading && (
+                <div className="empty-state">
+                  <div className="icon">📈</div>
+                  <p>Loading futures data...</p>
+                </div>
+              )}
+              <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:10}}>
+                {futures.map(f => (
+                  <div key={f.symbol} style={{
+                    background:"#080b10", border:\`1px solid \${f.trend==="up"?"#00d4aa33":f.trend==="down"?"#ff4d6d33":"#1a2030"}\`,
+                    borderRadius:10, padding:"14px 16px"
+                  }}>
+                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8}}>
+                      <div>
+                        <div style={{fontSize:11, color:"#475569", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:2}}>{f.name}</div>
+                        <div style={{fontSize:10, color:"#2a3a55"}}>{f.symbol}</div>
+                      </div>
+                      <span style={{fontSize:9, padding:"2px 7px", borderRadius:4,
+                        background: f.trend==="up"?"rgba(0,212,170,0.1)":f.trend==="down"?"rgba(255,77,109,0.1)":"rgba(71,85,105,0.2)",
+                        color: f.trend==="up"?"#00d4aa":f.trend==="down"?"#ff4d6d":"#475569",
+                        border: \`1px solid \${f.trend==="up"?"#00d4aa33":f.trend==="down"?"#ff4d6d33":"#1a2030"}\`
+                      }}>
+                        {f.trend==="up"?"▲ UP":f.trend==="down"?"▼ DOWN":"— FLAT"}
+                      </span>
+                    </div>
+                    <div style={{fontSize:20, fontWeight:700, color:"#f0f4f8", marginBottom:4}}>
+                      {f.price ? \`$\${f.price.toLocaleString()}\` : "—"}
+                    </div>
+                    <div style={{fontSize:11, color: f.change > 0 ? "#00d4aa" : f.change < 0 ? "#ff4d6d" : "#475569"}}>
+                      {f.change != null ? \`\${f.change > 0 ? "+" : ""}\${f.change}%\` : "—"}
+                      {f.prevClose && <span style={{color:"#2a3a55", marginLeft:8}}>prev \${f.prevClose.toLocaleString()}</span>}
+                    </div>
+                    {f.high && f.low && (
+                      <div style={{fontSize:10, color:"#2a3a55", marginTop:4}}>
+                        H: \${f.high.toLocaleString()} · L: \${f.low.toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pre-market watchlist */}
+            <div className="card">
+              <div className="card-title" style={{marginBottom:16}}>Pre-Market — Your Watchlist</div>
+              {premarket.length === 0 && (
+                <div className="empty-state" style={{padding:"20px 0"}}>
+                  <div className="icon">🌅</div>
+                  <p>No pre-market data yet.<br/>Available from ~4:00 AM ET.</p>
+                </div>
+              )}
+              {premarket.length > 0 && (
+                <table style={{width:"100%", borderCollapse:"collapse", fontSize:12}}>
+                  <thead>
+                    <tr style={{borderBottom:"1px solid #1e2a3a", color:"#475569", textAlign:"left"}}>
+                      {["Ticker","Pre-Market Price","Prev Close","Gap %","Direction"].map(h => (
+                        <th key={h} style={{padding:"8px 12px", fontWeight:"normal", fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase"}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {premarket.map(p => (
+                      <tr key={p.ticker} style={{borderBottom:"1px solid #0f1520"}}>
+                        <td style={{padding:"12px", color:"#f0f4f8", fontWeight:"bold"}}>{p.ticker}</td>
+                        <td style={{padding:"12px", color:"#e2e8f0"}}>{p.prePrice ? \`$\${p.prePrice}\` : "—"}</td>
+                        <td style={{padding:"12px", color:"#475569"}}>{p.prevClose ? \`$\${p.prevClose}\` : "—"}</td>
+                        <td style={{padding:"12px", color: p.gapPct > 0.5 ? "#00d4aa" : p.gapPct < -0.5 ? "#ff4d6d" : "#475569"}}>
+                          {p.gapPct != null ? \`\${p.gapPct > 0 ? "+" : ""}\${p.gapPct}%\` : "—"}
+                        </td>
+                        <td style={{padding:"12px"}}>
+                          <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
+                            background: p.gapDir==="up"?"rgba(0,212,170,0.1)":p.gapDir==="down"?"rgba(255,77,109,0.1)":"rgba(71,85,105,0.15)",
+                            color: p.gapDir==="up"?"#00d4aa":p.gapDir==="down"?"#ff4d6d":"#475569",
+                            border: \`1px solid \${p.gapDir==="up"?"#00d4aa33":p.gapDir==="down"?"#ff4d6d33":"#1a203044"}\`
+                          }}>
+                            {p.gapDir==="up"?"▲ Gap Up":p.gapDir==="down"?"▼ Gap Down":"— Flat"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}
@@ -1994,6 +2180,7 @@ export default function ORBApp() {
           <nav className="footer-nav">
             <a href="#" onClick={e => { e.preventDefault(); setTab("learn"); window.scrollTo(0,0); }}>📖 How It Works</a>
             <a href="#" onClick={e => { e.preventDefault(); setTab("signals"); window.scrollTo(0,0); }}>⚡ Live Signals</a>
+            <a href="#" onClick={e => { e.preventDefault(); setTab("futures"); fetchFutures(); window.scrollTo(0,0); }}>📈 Futures</a>
             <a href="#" onClick={e => { e.preventDefault(); setTab("tradelog"); fetchTradeLog(); window.scrollTo(0,0); }}>📋 Trade Log</a>
             <a href="#" onClick={e => { e.preventDefault(); setTab("configure"); window.scrollTo(0,0); }}>⚙️ Alert Config</a>
           </nav>
@@ -2003,7 +2190,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v1.6.0
+                v1.7.0
               </a>
             </div>
           </div>

@@ -4,6 +4,13 @@ All notable changes to ORBsignal are documented here.
 
 ---
 
+## v1.7.0 — 2026-03-10
+- Added Futures tab: live quotes for ES=F, NQ=F, YM=F, RTY=F, CL=F, GC=F, ZB=F
+- Added pre-market watchlist table with gap % vs previous close
+- Futures auto-refreshes every 60s alongside other data
+- Added 📈 Futures link to footer nav
+- Version bumped to v1.7.0
+
 ## v1.6.0 — 2026-03-10
 - Added FOMC, CPI, and NFP economic calendar (2025–2026) with warning banner on high-impact days
 - Added Yahoo Finance news check per ticker — flags earnings, FDA, SEC, lawsuits, upgrades/downgrades
