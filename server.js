@@ -374,6 +374,98 @@ app.get("/trades/export", (req, res) => {
   res.send([header, ...rows].join("\r\n"));
 });
 
+// ─── Yesterday's ORB Report ───────────────────────────────────────────────────
+async function fetchYesterdayCandles(ticker) {
+  // range=5d gives us multiple days of 1m data — we extract yesterday's session
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=5d&includePrePost=false`;
+  const res  = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
+  if (!res.ok) throw new Error(`Yahoo ${res.status} for ${ticker}`);
+  const json   = await res.json();
+  const result = json?.chart?.result?.[0];
+  if (!result)  throw new Error(`No data for ${ticker}`);
+  const { open, high, low, close, volume } = result.indicators.quote[0];
+  const allCandles = result.timestamp.map((ts, i) => ({
+    time: new Date(ts * 1000), open: open[i], high: high[i],
+    low: low[i], close: close[i], volume: volume[i],
+  })).filter(c => c.open !== null && c.close !== null);
+
+  // Group by date, pick the most recent completed session (not today)
+  const today = new Date().toDateString();
+  const byDate = {};
+  for (const c of allCandles) {
+    const d = c.time.toDateString();
+    if (d === today) continue; // skip today
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(c);
+  }
+  const dates = Object.keys(byDate).sort((a,b) => new Date(b) - new Date(a));
+  return { candles: byDate[dates[0]] || [], date: dates[0] || null };
+}
+
+app.get("/yesterday", async (req, res) => {
+  const tickers   = (req.query.tickers || "SPY").split(",").map(t => t.trim().toUpperCase());
+  const orbWindow = parseInt(req.query.orbWindow) || 15;
+  const maxRisk   = parseFloat(req.query.maxRisk) || 1000;
+
+  const results = await Promise.allSettled(tickers.map(async ticker => {
+    const { candles, date } = await fetchYesterdayCandles(ticker);
+    if (!candles.length) return { ticker, dir: "none", date, error: "No data" };
+
+    const orb = detectORB(candles, orbWindow, 100); // volFilter=100 for yesterday (no filter)
+    if (!orb || orb.dir === "none") return { ticker, dir: "none", date, orbHigh: orb?.orbHigh, orbLow: orb?.orbLow, price: orb?.price };
+
+    // Entry = breakout candle close
+    const entry = orb.price;
+    const orbRange = orb.orbHigh - orb.orbLow;
+    const stop  = orb.dir === "long"
+      ? +(orb.orbHigh - orbRange * 0.1).toFixed(2)
+      : +(orb.orbLow  + orbRange * 0.1).toFixed(2);
+    const riskPerShare = Math.abs(entry - stop);
+    const shares = riskPerShare > 0 ? Math.floor(maxRisk / riskPerShare) : 0;
+    const t1 = orb.dir === "long"
+      ? +(entry + riskPerShare * 2).toFixed(2)
+      : +(entry - riskPerShare * 2).toFixed(2);
+    const eod = candles[candles.length - 1].close;
+
+    // Find the breakout candle index
+    const breakoutTime = candles.find(c =>
+      orb.dir === "long" ? c.close > orb.orbHigh : c.close < orb.orbLow
+    )?.time;
+    const postBreakout = breakoutTime
+      ? candles.filter(c => c.time >= breakoutTime)
+      : [];
+
+    // Check if T1 was hit
+    let t1Hit = false;
+    let exitPrice = +eod.toFixed(2);
+    for (const c of postBreakout) {
+      if (orb.dir === "long"  && c.high  >= t1) { t1Hit = true; exitPrice = t1; break; }
+      if (orb.dir === "short" && c.low   <= t1) { t1Hit = true; exitPrice = t1; break; }
+    }
+
+    const pnl = orb.dir === "long"
+      ? +((exitPrice - entry) * shares).toFixed(0)
+      : +((entry - exitPrice) * shares).toFixed(0);
+    const pnlPct = entry > 0 ? +(((exitPrice - entry) / entry) * 100 * (orb.dir === "short" ? -1 : 1)).toFixed(2) : 0;
+    const outcome = pnl > 0 ? "win" : pnl < 0 ? "loss" : "flat";
+
+    return {
+      ticker, date, dir: orb.dir,
+      orbHigh: orb.orbHigh, orbLow: orb.orbLow, orbRangePct: orb.orbRangePct,
+      entry: +entry.toFixed(2), stop: +stop.toFixed(2), t1: +t1.toFixed(2),
+      exitPrice, exitType: t1Hit ? "T1 hit" : "EOD close",
+      eod: +eod.toFixed(2), shares, pnl, pnlPct, outcome,
+      conf: orb.conf, time: orb.time,
+    };
+  }));
+
+  const date = results.find(r => r.status === "fulfilled" && r.value.date)?.value?.date || null;
+  res.json({
+    date,
+    results: results.map(r => r.status === "fulfilled" ? r.value : { ticker: "?", dir: "none", error: r.reason?.message }),
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`\n✅ ORBsignal server running on port ${PORT}`);
   console.log(`   /scan    → ORB breakout detection`);

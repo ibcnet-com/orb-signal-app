@@ -712,25 +712,29 @@ const style = \`
   }
   .header {
     border-bottom: 1px solid #1e2a3a;
-    padding: 18px 32px;
+    padding: 14px 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     background: rgba(9,12,16,0.95);
     backdrop-filter: blur(10px);
     position: sticky; top: 0; z-index: 100;
+    overflow: hidden;
   }
   .logo {
     font-family: 'Instrument Serif', serif;
     font-size: 22px;
     letter-spacing: 0.02em;
     color: #f0f4f8;
+    flex-shrink: 0;
   }
   .logo span { color: #00d4aa; font-style: italic; }
   .ticker-bar {
-    display: flex; gap: 20px; font-size: 11px; color: #64748b;
+    display: flex; gap: 16px; font-size: 11px; color: #64748b;
+    flex-wrap: nowrap; overflow: hidden; min-width: 0;
+    align-items: center;
   }
-  .ticker-item { display: flex; gap: 6px; align-items: center; }
+  .ticker-item { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
   .ticker-item .up { color: #00d4aa; }
   .ticker-item .down { color: #ff4d6d; }
   .live-dot {
@@ -833,9 +837,16 @@ const style = \`
     /* Global */
     body { padding-bottom: 72px; }
 
-    /* Hero */
-    .hero { padding: 32px 16px 24px; }
-    .hero h1 { font-size: 28px; }
+    /* Header — fix horizontal overflow */
+    .header { padding: 10px 14px; }
+    .logo { font-size: 18px; flex-shrink: 0; }
+    .ticker-bar { gap: 8px; font-size: 10px; }
+    .ticker-item:nth-child(3) { display: none; } /* hide VIX on mobile */
+
+    /* Hero — hide on non-learn tabs */
+    .hero-mobile-hide { display: none !important; }
+    .hero { padding: 24px 16px 20px; }
+    .hero h1 { font-size: 24px; }
     .hero p  { font-size: 12px; }
 
     /* Hide desktop tabs, show bottom nav */
@@ -1127,6 +1138,174 @@ const style = \`
   .simulate-btn {
     width: 100%; padding: 14px;
     margin-top: 16px;
+  }
+
+  /* ── Performance Chart & Yesterday Report ── */
+  .perf-section {
+    background: #080b10; border: 1px solid #1e2a3a;
+    border-radius: 14px; padding: 20px; margin-bottom: 20px;
+  }
+  .perf-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+  }
+  .perf-title { font-size: 13px; font-weight: 700; color: #f0f4f8; }
+  .perf-subtitle { font-size: 10px; color: #475569; margin-top: 2px; }
+  .perf-toggles { display: flex; gap: 6px; flex-wrap: wrap; }
+  .perf-toggle {
+    padding: 4px 10px; border-radius: 6px; font-size: 10px;
+    border: 1px solid #2a3a55; background: transparent; color: #64748b;
+    cursor: pointer; font-family: 'Space Mono', monospace;
+    transition: all 0.2s;
+  }
+  .perf-toggle.active {
+    background: rgba(0,212,170,0.12); border-color: #00d4aa44; color: #00d4aa;
+  }
+  .perf-stats-strip {
+    display: flex; gap: 20px; flex-wrap: wrap;
+    padding: 10px 14px; background: #0d1623;
+    border-radius: 8px; margin-bottom: 16px; font-size: 11px;
+  }
+  .perf-stat { display: flex; flex-direction: column; gap: 2px; }
+  .perf-stat-val { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; color: #f0f4f8; }
+  .perf-stat-lbl { font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* Yesterday rows */
+  .yday-row {
+    display: grid; grid-template-columns: 60px 80px 1fr 80px 60px;
+    align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid #0f1520;
+  }
+  .yday-row:last-child { border-bottom: none; }
+  .yday-ticker { font-size: 13px; font-weight: 700; color: #f0f4f8; font-family: 'Instrument Serif', serif; }
+  .yday-dir { font-size: 10px; font-family: 'Space Mono', monospace; }
+  .yday-bar-wrap { position: relative; height: 8px; background: #1e2a3a; border-radius: 4px; overflow: hidden; }
+  .yday-bar-fill { position: absolute; top: 0; height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+  .yday-pnl { font-size: 12px; font-family: 'Space Mono', monospace; font-weight: 700; text-align: right; }
+  .yday-outcome { text-align: right; }
+  .yday-exit-type { font-size: 9px; color: #475569; margin-top: 2px; }
+  .yday-summary {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    padding: 12px 14px; background: #0d1623;
+    border-radius: 8px; margin-top: 16px; font-size: 11px;
+  }
+
+  @media(max-width:768px) {
+    .yday-row { grid-template-columns: 50px 70px 1fr 70px; }
+    .yday-row > :last-child { display: none; }
+    .perf-stats-strip { gap: 12px; }
+  }
+  .sim-card {
+    background: #080b10;
+    border: 1px solid #1e2a3a;
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 20px;
+    animation: fadeIn 0.4s ease;
+  }
+  .sim-card-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .sim-ticker {
+    font-size: 22px; font-weight: 700; color: #f0f4f8;
+    font-family: 'Instrument Serif', serif;
+  }
+  .sim-dir-badge {
+    padding: 4px 12px; border-radius: 6px; font-size: 11px;
+    font-family: 'Space Mono', monospace; font-weight: 700;
+  }
+  .sim-dir-badge.long { background: rgba(0,212,170,0.15); color: #00d4aa; border: 1px solid #00d4aa44; }
+  .sim-dir-badge.short { background: rgba(255,77,109,0.15); color: #ff4d6d; border: 1px solid #ff4d6d44; }
+  .sim-dir-badge.watch { background: rgba(71,85,105,0.2); color: #64748b; border: 1px solid #47556944; }
+
+  /* Annotated row */
+  .sim-row {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 0 20px;
+    align-items: start;
+    padding: 14px 0;
+    border-bottom: 1px solid #0f1520;
+    position: relative;
+  }
+  .sim-row:last-child { border-bottom: none; }
+  .sim-row-left { }
+  .sim-row-label {
+    font-size: 9px; color: #475569;
+    letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px;
+  }
+  .sim-row-value {
+    font-size: 18px; font-weight: 700; color: #f0f4f8;
+    font-family: 'Space Mono', monospace;
+  }
+  .sim-row-value.green { color: #00d4aa; }
+  .sim-row-value.red   { color: #ff4d6d; }
+  .sim-row-value.yellow{ color: #facc15; }
+  .sim-row-sub {
+    font-size: 10px; color: #475569; margin-top: 3px;
+  }
+  .sim-annotation {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px;
+    background: #0d1623;
+    border: 1px solid #1e2a3a;
+    border-left: 3px solid #00d4aa44;
+    border-radius: 8px;
+    position: relative;
+  }
+  .sim-annotation::before {
+    content: '←';
+    position: absolute; left: -18px; top: 50%; transform: translateY(-50%);
+    color: #00d4aa44; font-size: 14px;
+  }
+  .sim-annotation-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .sim-annotation-text { font-size: 11px; color: #64748b; line-height: 1.6; }
+  .sim-annotation-text strong { color: #94a3b8; }
+
+  /* Checks section */
+  .sim-checks { margin-top: 16px; }
+  .sim-check-row {
+    display: grid; grid-template-columns: 180px 1fr;
+    gap: 0 16px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid #0f1520;
+  }
+  .sim-check-row:last-child { border-bottom: none; }
+  .sim-check-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; padding: 5px 10px; border-radius: 6px;
+    font-family: 'Space Mono', monospace;
+  }
+  .sim-check-badge.pass { background: rgba(0,212,170,0.1); color: #00d4aa; border: 1px solid #00d4aa33; }
+  .sim-check-badge.fail { background: rgba(255,77,109,0.1); color: #ff4d6d; border: 1px solid #ff4d6d33; }
+  .sim-check-badge.warn { background: rgba(250,204,21,0.1); color: #facc15; border: 1px solid #facc1533; }
+  .sim-check-badge.na   { background: rgba(71,85,105,0.1);  color: #475569; border: 1px solid #47556933; }
+  .sim-check-explain { font-size: 11px; color: #475569; line-height: 1.5; }
+  .sim-check-explain strong { color: #64748b; }
+
+  /* Score bar */
+  .sim-score-bar {
+    margin-top: 20px; padding: 16px;
+    background: #0d1623; border-radius: 10px;
+    border: 1px solid #1e2a3a;
+  }
+  .sim-score-label { font-size: 9px; color: #475569; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px; }
+  .sim-score-track {
+    height: 8px; background: #1e2a3a; border-radius: 4px; overflow: hidden; margin-bottom: 8px;
+  }
+  .sim-score-fill {
+    height: 100%; border-radius: 4px; transition: width 1s ease;
+  }
+  .sim-score-nums {
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: #475569;
+    font-family: 'Space Mono', monospace;
+  }
+
+  @media(max-width:768px) {
+    .sim-row { grid-template-columns: 1fr; gap: 8px; }
+    .sim-annotation::before { display: none; }
+    .sim-check-row { grid-template-columns: 1fr; gap: 6px; }
   }
 
   input[type=range] {
@@ -1602,8 +1781,25 @@ export default function ORBApp() {
   const [tradeLog, setTradeLog]     = useState([]);
   const [tradeStats, setTradeStats] = useState(null);
   const [logLoading, setLogLoading] = useState(false);
-  const [closeModal, setCloseModal] = useState(null); // trade being closed
+  const [closeModal, setCloseModal] = useState(null);
   const [exitPrice, setExitPrice]   = useState("");
+
+  // ── Yesterday ORB Report ──────────────────────────────────────────────────
+  const [yesterdayReport, setYesterdayReport] = useState(null);
+  const [yesterdayLoading, setYesterdayLoading] = useState(false);
+
+  async function fetchYesterdayReport() {
+    setYesterdayLoading(true);
+    try {
+      const tickers = watchlist.join(",");
+      const r = await fetch(\`\${API}/yesterday?tickers=\${tickers}&orbWindow=\${orbWindow}&maxRisk=\${maxRisk}\`);
+      const data = await r.json();
+      setYesterdayReport(data);
+    } catch(e) {
+      setYesterdayReport({ error: e.message });
+    }
+    setYesterdayLoading(false);
+  }
 
   async function fetchTradeLog() {
     setLogLoading(true);
@@ -1664,24 +1860,29 @@ export default function ORBApp() {
     return () => { clearInterval(quoteInt); clearInterval(scanInt); clearInterval(logInt); clearInterval(futuresInt); };
   }, [watchlist, orbWindow, volFilter]);
 
-  function runSim() {
+  const MAG7 = ["AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA"];
+  const [simTicker, setSimTicker] = useState(null);
+
+  async function runSim() {
     setSimLoading(true);
     setSimResult(null);
-    setTimeout(() => {
-      const win = Math.random() > 0.42;
-      const rr = (Math.random() * 2 + 1.2).toFixed(1);
-      const pct = win ? \`+\${(Math.random() * 1.8 + 0.4).toFixed(2)}%\` : \`-\${(Math.random() * 0.8 + 0.2).toFixed(2)}%\`;
-      setSimResult({
-        entry: \`$\${(180 + Math.random() * 5).toFixed(2)}\`,
-        stop: \`$\${(179 + Math.random() * 1).toFixed(2)}\`,
-        target: \`$\${(183 + Math.random() * 3).toFixed(2)}\`,
-        outcome: win ? "WIN" : "LOSS",
-        rr,
-        pct,
-        win,
-      });
-      setSimLoading(false);
-    }, 1600);
+    const ticker = MAG7[Math.floor(Math.random() * MAG7.length)];
+    setSimTicker(ticker);
+    try {
+      const url  = \`\${API}/scan?tickers=\${ticker}&orbWindow=\${orbWindow}&volFilter=100\`;
+      const r    = await fetch(url);
+      const data = await r.json();
+      const all  = [...(data.signals || []), ...(data.noBreakout || [])];
+      const s    = all[0];
+      if (s) {
+        setSimResult({ ...s, ticker });
+      } else {
+        setSimResult({ error: "No data returned — market may be closed." });
+      }
+    } catch(e) {
+      setSimResult({ error: e.message });
+    }
+    setSimLoading(false);
   }
 
   const confBadge = c => <span className={\`badge \${c}\`}>{c === "high" ? "High Conf" : c === "med" ? "Med Conf" : "Low Conf"}</span>;
@@ -1786,6 +1987,8 @@ export default function ORBApp() {
       </span>
     );
   }
+
+  function calcTrade(s) {
     const entry    = s.price;
     const orbRange = s.orbHigh - s.orbLow;
     // Stop: just inside ORB level
@@ -1807,6 +2010,154 @@ export default function ORBApp() {
     const rr1     = riskPerShare > 0 ? (Math.abs(t1 - entry) / riskPerShare).toFixed(1) : "—";
     const rr2     = riskPerShare > 0 ? (Math.abs(t2 - entry) / riskPerShare).toFixed(1) : "—";
     return { entry, stop, shares, t1, t2, reward1, reward2, rr1, rr2, riskPerShare: +riskPerShare.toFixed(2) };
+  }
+
+  // ── Annotated Simulator Card ────────────────────────────────────────────────
+  function SimulatorCard({ s }) {
+    if (s.error) return (
+      <div style={{marginTop:16, padding:16, background:"#0a1520", borderRadius:10,
+        border:"1px solid #ff4d6d44", color:"#ff4d6d", fontSize:12}}>
+        ⚠ {s.error}
+      </div>
+    );
+
+    const t   = calcTrade(s);
+    const { score, checks } = calcConfidenceScore(s);
+    const scoreColor = score >= 80 ? "#00d4aa" : score >= 60 ? "#facc15" : "#ff4d6d";
+    const isLong  = s.dir === "long";
+    const isWatch = !s.dir || s.dir === "watch";
+    const dirLabel = isWatch ? "👁 WATCHING" : isLong ? "▲ LONG" : "▼ SHORT";
+    const dirClass = isWatch ? "watch" : isLong ? "long" : "short";
+
+    const rows = [
+      {
+        label: "Entry Price",
+        value: \`$\${t.entry?.toFixed(2) ?? "—"}\`,
+        cls: "green",
+        icon: "🎯",
+        explain: <>Price just <strong>broke above the ORB High</strong> (or below ORB Low for shorts). This is your trigger — the moment momentum is confirmed.</>
+      },
+      {
+        label: "ORB Range",
+        value: \`$\${s.orbLow?.toFixed(2)} – $\${s.orbHigh?.toFixed(2)}\`,
+        cls: "",
+        sub: \`\${s.orbRangePct ?? "—"}% range · \${s.tinyRange ? "⚠ Tiny" : "✓ Healthy"}\`,
+        icon: "📏",
+        explain: <>The <strong>Opening Range</strong> is the high/low formed in the first {orbWindow} minutes. A range ≥ 0.2% is required — tiny ranges create noisy, unreliable breakouts.</>
+      },
+      {
+        label: "Stop Loss",
+        value: \`$\${t.stop?.toFixed(2) ?? "—"}\`,
+        cls: "red",
+        sub: \`Risk: $\${t.riskPerShare} / share · \${t.shares} shares\`,
+        icon: "🛑",
+        explain: <>Placed <strong>just inside the ORB</strong>. If price falls back into the range, the breakout has failed. Max risk is capped at <strong>\${maxRisk}</strong> based on your config.</>
+      },
+      {
+        label: "Target 1  (2:1 R/R)",
+        value: \`$\${t.t1?.toFixed(2) ?? "—"}\`,
+        cls: "green",
+        sub: \`Potential gain: $\${t.reward1}\`,
+        icon: "🥇",
+        explain: <>Your <strong>first profit target</strong> — reward is exactly 2× your risk. This is the minimum acceptable R/R for an ORB trade. Take partial profits here.</>
+      },
+      {
+        label: "Target 2  (2× Range)",
+        value: \`$\${t.t2?.toFixed(2) ?? "—"}\`,
+        cls: "yellow",
+        sub: \`Potential gain: $\${t.reward2}\`,
+        icon: "🚀",
+        explain: <>Extended move of <strong>2× the ORB range</strong> added to entry. Let your remaining position run here if momentum is strong — but only after T1 is hit.</>
+      },
+    ];
+
+    const checkExplain = {
+      "Breakout confirmed":     "Price closed above ORB High (long) or below ORB Low (short) on a real candle — not just a wick.",
+      "Volume surge":           \`Breakout candle volume was ≥ \${volFilter}% of the average. Low-volume breakouts fail far more often.\`,
+      "SPY trend aligned":      "SPY is trending in the same direction as your trade. Fighting the market trend is one of the biggest ORB mistakes.",
+      "ORB range healthy":      "The range is ≥ 0.2% — wide enough to produce a meaningful breakout without excessive noise.",
+      "Entry before 11 AM":     "ORB setups taken before 11 AM ET have historically much higher win rates. Momentum fades after the morning session.",
+      "No major news":          "No earnings, upgrades, or major headlines on this ticker today. News-driven moves are unpredictable.",
+      "No economic event":      "No FOMC, CPI, or NFP today. Macro events create sudden reversals that can blow through stops.",
+      "Pre-market gap aligned": "The stock was already gapping in the same direction pre-market — extra confirmation of institutional interest.",
+    };
+
+    return (
+      <div className="sim-card">
+
+        {/* Header */}
+        <div className="sim-card-header">
+          <span className="sim-ticker">{s.ticker}</span>
+          <span className={\`sim-dir-badge \${dirClass}\`}>{dirLabel}</span>
+          <span className={\`badge \${s.conf}\`} style={{fontSize:11}}>
+            {s.conf === "high" ? "High Conf" : s.conf === "med" ? "Med Conf" : "Low Conf"}
+          </span>
+          <span style={{
+            display:"inline-flex", alignItems:"center", gap:5,
+            background: score >= 80 ? "rgba(0,212,170,0.12)" : score >= 60 ? "rgba(250,204,21,0.12)" : "rgba(255,77,109,0.12)",
+            border:\`1px solid \${scoreColor}44\`, color:scoreColor,
+            borderRadius:6, padding:"3px 10px", fontSize:11,
+            fontFamily:"'Space Mono',monospace",
+          }}>⬡ {score}%</span>
+          <span style={{fontSize:11, color:"#475569", marginLeft:"auto"}}>
+            Sim · {new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit"})} ET
+          </span>
+        </div>
+
+        {/* Annotated rows */}
+        {rows.map((row, i) => (
+          <div className="sim-row" key={i}>
+            <div className="sim-row-left">
+              <div className="sim-row-label">{row.label}</div>
+              <div className={\`sim-row-value \${row.cls}\`}>{row.value}</div>
+              {row.sub && <div className="sim-row-sub">{row.sub}</div>}
+            </div>
+            <div className="sim-annotation">
+              <div className="sim-annotation-icon">{row.icon}</div>
+              <div className="sim-annotation-text">{row.explain}</div>
+            </div>
+          </div>
+        ))}
+
+        {/* Rule checks with explanations */}
+        <div style={{marginTop:24, marginBottom:8, fontSize:9, color:"#475569", letterSpacing:"0.12em", textTransform:"uppercase"}}>
+          Signal Checklist — what each rule means
+        </div>
+        <div className="sim-checks">
+          {checks.map((c, i) => (
+            <div className="sim-check-row" key={i}>
+              <span className={\`sim-check-badge \${c.na ? "na" : c.pass ? "pass" : "fail"}\`}>
+                {c.na ? "~" : c.pass ? "✓" : "⚠"} {c.label}
+              </span>
+              <span className="sim-check-explain">
+                {checkExplain[c.label]}
+                {!c.na && <> <strong style={{color: c.pass ? "#00d4aa" : "#ff4d6d"}}>{c.pass ? \`+\${c.weight}% confidence\` : "Not met — 0%"}</strong></>}
+                {c.na && <strong style={{color:"#2a3a55"}}> — n/a (no pre-market data)</strong>}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Score bar */}
+        <div className="sim-score-bar">
+          <div className="sim-score-label">Overall Confidence Score</div>
+          <div className="sim-score-track">
+            <div className="sim-score-fill" style={{width:\`\${score}%\`, background:scoreColor}}/>
+          </div>
+          <div className="sim-score-nums">
+            <span>0%</span>
+            <span style={{color:scoreColor, fontWeight:700}}>{score}% / 97% max</span>
+            <span>97%</span>
+          </div>
+          <div style={{fontSize:10, color:"#2a3a55", marginTop:8}}>
+            {score >= 80 ? "✓ Strong setup — most indicators aligned" :
+             score >= 60 ? "⚠ Moderate — review failing checks before trading" :
+             "✗ Weak setup — too many indicators missing"}
+          </div>
+        </div>
+
+      </div>
+    );
   }
 
   function SignalCard({ s, idx }) {
@@ -1970,7 +2321,7 @@ export default function ORBApp() {
       </header>
 
       <main className="main">
-        <div className="hero">
+        <div className={\`hero\${tab !== "learn" ? " hero-mobile-hide" : ""}\`}>
           <div className="hero-label">
             <span>Day Trading Intelligence</span>
           </div>
@@ -1979,7 +2330,7 @@ export default function ORBApp() {
         </div>
 
         {/* Stats */}
-        <div className="grid-3" style={{marginBottom: 32}}>
+        <div className={\`grid-3\${tab !== "learn" ? " hero-mobile-hide" : ""}\`} style={{marginBottom: 32}}>
           <div className="stat-box">
             <span className="val">68%</span>
             <span className="lbl">Historical Win Rate</span>
@@ -2003,7 +2354,7 @@ export default function ORBApp() {
             { id: "tradelog",  label: "📋 Trade Log" },
             { id: "configure", label: "⚙️ Alert Config" },
           ].map(t => (
-            <button key={t.id} className={\`tab \${tab===t.id?"active":""}\`} onClick={()=>{ setTab(t.id); if(t.id==="tradelog") fetchTradeLog(); if(t.id==="futures") fetchFutures(); }}>
+            <button key={t.id} className={\`tab \${tab===t.id?"active":""}\`} onClick={()=>{ setTab(t.id); if(t.id==="tradelog") { fetchTradeLog(); fetchYesterdayReport(); } if(t.id==="futures") fetchFutures(); }}>
               {t.label}
             </button>
           ))}
@@ -2103,20 +2454,18 @@ export default function ORBApp() {
                   </div>
                 </div>
                 <div className="card" style={{marginTop:0}}>
-                  <div className="card-title">Signal Simulator</div>
-                  <p style={{fontSize:11, color:"#64748b", marginBottom:12}}>Simulate a random ORB scenario and see entry/stop/target levels.</p>
+                  <div className="card-title">🧪 Signal Simulator</div>
+                  <p style={{fontSize:12, color:"#64748b", marginBottom:16, lineHeight:1.6}}>
+                    Picks a random <strong style={{color:"#94a3b8"}}>Mag 7</strong> stock, fetches real market data, and renders a fully annotated signal card — so you can learn exactly what each number means before going live.
+                  </p>
                   <button className="btn btn-primary simulate-btn" onClick={runSim} disabled={simLoading}>
-                    {simLoading ? "Simulating..." : "▶ Run Simulation"}
+                    {simLoading
+                      ? \`⟳ Fetching \${simTicker ?? "..."}...\`
+                      : simResult
+                        ? \`▶ Run Again  (\${MAG7.join(" · ")})\`
+                        : "▶ Run Simulator"}
                   </button>
-                  {simResult && (
-                    <div className="alert-sim-result">
-                      <div className="result-row"><span className="label">Entry Price</span><span className="value">{simResult.entry}</span></div>
-                      <div className="result-row"><span className="label">Stop Loss</span><span className="value red">{simResult.stop}</span></div>
-                      <div className="result-row"><span className="label">Take Profit</span><span className="value green">{simResult.target}</span></div>
-                      <div className="result-row"><span className="label">Risk/Reward</span><span className="value">{simResult.rr}:1</span></div>
-                      <div className="result-row"><span className="label">Outcome</span><span className={\`value \${simResult.win?"green":"red"}\`}>{simResult.outcome} {simResult.pct}</span></div>
-                    </div>
-                  )}
+                  {simResult && <SimulatorCard s={simResult} />}
                 </div>
               </div>
             </div>
@@ -2392,27 +2741,308 @@ export default function ORBApp() {
         )}
 
         {/* === TRADE LOG TAB === */}
-        {tab === "tradelog" && (
+        {tab === "tradelog" && (() => {
+          // ── My Performance chart data ──────────────────────────────────────
+          const [perfView, setPerfView] = useState("pnl");
+          const closed = tradeLog.filter(t => t.outcome !== "open" && t.pnl_dollar != null);
+          // Cumulative P&L over time
+          let running = 0;
+          const pnlSeries = closed.map(t => {
+            running += t.pnl_dollar;
+            return { date: new Date(t.logged_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}), pnl: +running.toFixed(0), trade: t };
+          });
+          // Win rate rolling (all trades so far)
+          const wrSeries = closed.map((t, i) => {
+            const slice = closed.slice(0, i + 1);
+            const wins  = slice.filter(x => x.outcome === "win").length;
+            return { date: new Date(t.logged_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}), wr: +((wins / slice.length) * 100).toFixed(0) };
+          });
+          // By ticker
+          const byTicker = {};
+          for (const t of closed) {
+            if (!byTicker[t.ticker]) byTicker[t.ticker] = 0;
+            byTicker[t.ticker] += t.pnl_dollar;
+          }
+          const tickerSeries = Object.entries(byTicker).sort((a,b) => b[1]-a[1]).map(([ticker, pnl]) => ({ ticker, pnl: +pnl.toFixed(0) }));
+          const maxAbs = Math.max(...tickerSeries.map(x => Math.abs(x.pnl)), 1);
+
+          // best trade
+          const best = closed.reduce((b, t) => t.pnl_dollar > (b?.pnl_dollar ?? -Infinity) ? t : b, null);
+
+          // ── Yesterday ORB data ──────────────────────────────────────────────
+          const ydayResults = yesterdayReport?.results?.filter(r => r.dir !== "none" || r.orbHigh) || [];
+          const ydayDate    = yesterdayReport?.date ? new Date(yesterdayReport.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}) : "—";
+          const ydaySignals = ydayResults.filter(r => r.dir !== "none");
+          const ydayWins    = ydaySignals.filter(r => r.outcome === "win").length;
+          const ydayLosses  = ydaySignals.filter(r => r.outcome === "loss").length;
+          const ydayNet     = ydaySignals.reduce((s, r) => s + (r.pnl ?? 0), 0);
+          const ydayMaxAbs  = Math.max(...ydaySignals.map(r => Math.abs(r.pnlPct ?? 0)), 1);
+
+          return (
           <div>
-            {tradeStats && (
-              <div className="grid-3" style={{marginBottom:20}}>
-                <div className="stat-box">
-                  <span className="val" style={{fontSize:24}}>{tradeStats.winRate}%</span>
-                  <span className="lbl">Win Rate</span>
+            {/* ── Section 1: My Performance ── */}
+            <div className="perf-section">
+              <div className="perf-header">
+                <div>
+                  <div className="perf-title">📈 My Performance</div>
+                  <div className="perf-subtitle">Based on {closed.length} closed trade{closed.length !== 1 ? "s" : ""}</div>
                 </div>
-                <div className="stat-box">
-                  <span className="val" style={{fontSize:24, color: tradeStats.totalPnl >= 0 ? "#00d4aa" : "#ff4d6d"}}>
-                    \${tradeStats.totalPnl >= 0 ? "+" : ""}{tradeStats.totalPnl}
-                  </span>
-                  <span className="lbl">Total P&L</span>
-                </div>
-                <div className="stat-box">
-                  <span className="val" style={{fontSize:24}}>{tradeStats.total}</span>
-                  <span className="lbl">Total Trades ({tradeStats.wins}W / {tradeStats.losses}L)</span>
+                <div className="perf-toggles">
+                  {[["pnl","Cumulative P&L"],["wr","Win Rate"],["ticker","By Ticker"]].map(([v,l]) => (
+                    <button key={v} className={\`perf-toggle \${perfView===v?"active":""}\`} onClick={()=>setPerfView(v)}>{l}</button>
+                  ))}
                 </div>
               </div>
-            )}
 
+              {closed.length === 0 ? (
+                <div className="empty-state" style={{padding:"32px 0"}}>
+                  <div className="icon">📊</div>
+                  <p>No closed trades yet — log and close trades to see your performance chart.</p>
+                </div>
+              ) : (<>
+                {/* Stats strip */}
+                <div className="perf-stats-strip">
+                  <div className="perf-stat">
+                    <span className="perf-stat-val" style={{color: tradeStats?.totalPnl >= 0 ? "#00d4aa" : "#ff4d6d"}}>
+                      {tradeStats?.totalPnl >= 0 ? "+" : ""}\${tradeStats?.totalPnl ?? 0}
+                    </span>
+                    <span className="perf-stat-lbl">Total P&L</span>
+                  </div>
+                  <div className="perf-stat">
+                    <span className="perf-stat-val">{tradeStats?.winRate ?? 0}%</span>
+                    <span className="perf-stat-lbl">Win Rate</span>
+                  </div>
+                  <div className="perf-stat">
+                    <span className="perf-stat-val">{tradeStats?.total ?? 0}</span>
+                    <span className="perf-stat-lbl">{tradeStats?.wins ?? 0}W / {tradeStats?.losses ?? 0}L</span>
+                  </div>
+                  {best && (
+                    <div className="perf-stat">
+                      <span className="perf-stat-val" style={{color:"#00d4aa"}}>+\${best.pnl_dollar}</span>
+                      <span className="perf-stat-lbl">Best · {best.ticker}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── P&L Chart ── */}
+                {perfView === "pnl" && (
+                  <div style={{overflowX:"auto"}}>
+                    <div style={{minWidth: Math.max(pnlSeries.length * 60, 300), height:160, position:"relative", padding:"0 8px"}}>
+                      {/* Grid lines */}
+                      {[0,25,50,75,100].map(p => (
+                        <div key={p} style={{position:"absolute", left:0, right:0, top:\`\${100-p}%\`,
+                          borderTop:"1px solid #0f1520", pointerEvents:"none"}}/>
+                      ))}
+                      {/* Zero line */}
+                      <div style={{position:"absolute", left:0, right:0,
+                        top: \`\${100 - ((0 - Math.min(...pnlSeries.map(x=>x.pnl),0)) / (Math.max(...pnlSeries.map(x=>x.pnl),1) - Math.min(...pnlSeries.map(x=>x.pnl),0)) * 100)}%\`,
+                        borderTop:"1px solid #2a3a55"}}/>
+                      {/* SVG line chart */}
+                      {(() => {
+                        const vals = pnlSeries.map(x => x.pnl);
+                        const minV = Math.min(...vals, 0);
+                        const maxV = Math.max(...vals, 0);
+                        const range = maxV - minV || 1;
+                        const w = Math.max(pnlSeries.length * 60, 300);
+                        const h = 140;
+                        const pts = pnlSeries.map((x, i) => {
+                          const cx = (i / Math.max(pnlSeries.length - 1, 1)) * (w - 20) + 10;
+                          const cy = h - ((x.pnl - minV) / range) * h;
+                          return { cx, cy, ...x };
+                        });
+                        const polyline = pts.map(p => \`\${p.cx},\${p.cy}\`).join(" ");
+                        return (
+                          <svg width="100%" height={h} viewBox={\`0 0 \${w} \${h}\`} style={{overflow:"visible"}}>
+                            <defs>
+                              <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#00d4aa" stopOpacity="0.3"/>
+                                <stop offset="100%" stopColor="#00d4aa" stopOpacity="0"/>
+                              </linearGradient>
+                            </defs>
+                            <polygon
+                              points={\`10,\${h} \${polyline} \${pts[pts.length-1].cx},\${h}\`}
+                              fill="url(#pnlGrad)"
+                            />
+                            <polyline points={polyline} fill="none" stroke="#00d4aa" strokeWidth="2" strokeLinejoin="round"/>
+                            {pts.map((p, i) => (
+                              <g key={i}>
+                                <circle cx={p.cx} cy={p.cy} r={4}
+                                  fill={p.pnl >= 0 ? "#00d4aa" : "#ff4d6d"} stroke="#080b10" strokeWidth={2}/>
+                                <text x={p.cx} y={h + 14} textAnchor="middle" fontSize={9} fill="#475569">{p.date}</text>
+                              </g>
+                            ))}
+                          </svg>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Win Rate Chart ── */}
+                {perfView === "wr" && (
+                  <div style={{overflowX:"auto"}}>
+                    <div style={{minWidth: Math.max(wrSeries.length * 60, 300), height:160, display:"flex", alignItems:"flex-end", gap:4, paddingBottom:20, position:"relative"}}>
+                      <div style={{position:"absolute", left:0, right:0, top:"50%", borderTop:"1px dashed #2a3a55", fontSize:9, color:"#2a3a55"}}> &nbsp;50%</div>
+                      {wrSeries.map((x, i) => (
+                        <div key={i} style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4, minWidth:50}}>
+                          <div style={{fontSize:9, color: x.wr >= 50 ? "#00d4aa" : "#ff4d6d", fontFamily:"'Space Mono',monospace"}}>{x.wr}%</div>
+                          <div style={{
+                            width:"100%", borderRadius:"4px 4px 0 0",
+                            height:\`\${x.wr}%\`, maxHeight:120,
+                            background: x.wr >= 60 ? "#00d4aa" : x.wr >= 45 ? "#facc15" : "#ff4d6d",
+                            opacity:0.7, transition:"height 0.6s ease",
+                          }}/>
+                          <div style={{fontSize:9, color:"#475569"}}>{x.date}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── By Ticker Chart ── */}
+                {perfView === "ticker" && (
+                  <div style={{display:"flex", flexDirection:"column", gap:10}}>
+                    {tickerSeries.map((x, i) => (
+                      <div key={i} style={{display:"grid", gridTemplateColumns:"60px 1fr 80px", alignItems:"center", gap:12}}>
+                        <span style={{fontSize:12, fontWeight:700, color:"#f0f4f8", fontFamily:"'Instrument Serif',serif"}}>{x.ticker}</span>
+                        <div style={{position:"relative", height:8, background:"#1e2a3a", borderRadius:4, overflow:"hidden"}}>
+                          <div style={{
+                            position:"absolute", top:0, height:"100%", borderRadius:4,
+                            width:\`\${(Math.abs(x.pnl) / maxAbs) * 100}%\`,
+                            background: x.pnl >= 0 ? "#00d4aa" : "#ff4d6d",
+                            left: x.pnl >= 0 ? 0 : "auto", right: x.pnl < 0 ? 0 : "auto",
+                          }}/>
+                        </div>
+                        <span style={{fontSize:12, fontFamily:"'Space Mono',monospace", fontWeight:700,
+                          color: x.pnl >= 0 ? "#00d4aa" : "#ff4d6d", textAlign:"right"}}>
+                          {x.pnl >= 0 ? "+" : ""}\${x.pnl}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>)}
+            </div>
+
+            {/* ── Section 2: Yesterday's ORB Report ── */}
+            <div className="perf-section">
+              <div className="perf-header">
+                <div>
+                  <div className="perf-title">📊 Yesterday's ORB Report</div>
+                  <div className="perf-subtitle">
+                    {yesterdayLoading ? "Loading..." : ydayDate ? \`\${ydayDate} · If you had acted on every signal\` : "No data yet"}
+                  </div>
+                </div>
+                <button className="perf-toggle" onClick={fetchYesterdayReport} disabled={yesterdayLoading}
+                  style={{fontSize:10}}>
+                  {yesterdayLoading ? "⟳" : "↻ Refresh"}
+                </button>
+              </div>
+
+              {yesterdayLoading && (
+                <div style={{color:"#475569", fontSize:12, padding:"20px 0", textAlign:"center"}}>
+                  ⟳ Fetching yesterday's data for {watchlist.length} tickers...
+                </div>
+              )}
+
+              {!yesterdayLoading && yesterdayReport?.error && (
+                <div style={{color:"#ff4d6d", fontSize:12, padding:"12px 0"}}>⚠ {yesterdayReport.error}</div>
+              )}
+
+              {!yesterdayLoading && ydayResults.length === 0 && !yesterdayReport?.error && (
+                <div className="empty-state" style={{padding:"32px 0"}}>
+                  <div className="icon">📊</div>
+                  <p>Switch to the Trade Log tab to load yesterday's report,<br/>or click Refresh above.</p>
+                </div>
+              )}
+
+              {!yesterdayLoading && ydayResults.length > 0 && (<>
+                {/* All tickers */}
+                {ydayResults.map((r, i) => {
+                  const isLong  = r.dir === "long";
+                  const isShort = r.dir === "short";
+                  const noSig   = r.dir === "none";
+                  const barPct  = noSig ? 0 : Math.min((Math.abs(r.pnlPct ?? 0) / ydayMaxAbs) * 100, 100);
+                  const color   = r.outcome === "win" ? "#00d4aa" : r.outcome === "loss" ? "#ff4d6d" : "#475569";
+                  return (
+                    <div className="yday-row" key={i}>
+                      <span className="yday-ticker">{r.ticker}</span>
+                      <span className="yday-dir" style={{color: isLong ? "#00d4aa" : isShort ? "#ff4d6d" : "#475569"}}>
+                        {noSig ? "— No signal" : isLong ? "▲ LONG" : "▼ SHORT"}
+                      </span>
+                      <div>
+                        <div className="yday-bar-wrap">
+                          {!noSig && (
+                            <div className="yday-bar-fill" style={{
+                              width:\`\${barPct}%\`, background:color,
+                              left: isLong ? 0 : "auto", right: isShort ? 0 : "auto",
+                            }}/>
+                          )}
+                        </div>
+                        {!noSig && (
+                          <div className="yday-exit-type">
+                            Entry \${r.entry} → {r.exitType} \${r.exitPrice}
+                          </div>
+                        )}
+                        {noSig && <div className="yday-exit-type">ORB {r.orbLow}–{r.orbHigh}</div>}
+                      </div>
+                      <div>
+                        {!noSig && (
+                          <div className="yday-pnl" style={{color}}>
+                            {r.pnl >= 0 ? "+" : ""}\${r.pnl}
+                          </div>
+                        )}
+                        <div className="yday-exit-type" style={{textAlign:"right"}}>
+                          {!noSig && \`\${r.pnlPct > 0 ? "+" : ""}\${r.pnlPct}%\`}
+                        </div>
+                      </div>
+                      <div className="yday-outcome">
+                        {!noSig && (
+                          <span className={\`badge \${r.outcome === "win" ? "high" : r.outcome === "loss" ? "low" : "med"}\`}>
+                            {r.outcome}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Summary */}
+                {ydaySignals.length > 0 && (
+                  <div className="yday-summary">
+                    <div className="perf-stat">
+                      <span className="perf-stat-val">{ydaySignals.length}</span>
+                      <span className="perf-stat-lbl">Signals fired</span>
+                    </div>
+                    <div className="perf-stat">
+                      <span className="perf-stat-val" style={{color:"#00d4aa"}}>{ydayWins}W</span>
+                      <span className="perf-stat-lbl">Wins</span>
+                    </div>
+                    <div className="perf-stat">
+                      <span className="perf-stat-val" style={{color:"#ff4d6d"}}>{ydayLosses}L</span>
+                      <span className="perf-stat-lbl">Losses</span>
+                    </div>
+                    <div className="perf-stat">
+                      <span className="perf-stat-val" style={{color: ydayNet >= 0 ? "#00d4aa" : "#ff4d6d"}}>
+                        {ydayNet >= 0 ? "+" : ""}\${ydayNet.toFixed(0)}
+                      </span>
+                      <span className="perf-stat-lbl">Net P&L</span>
+                    </div>
+                    <div className="perf-stat">
+                      <span className="perf-stat-val">
+                        {ydaySignals.length > 0 ? Math.round((ydayWins / ydaySignals.length) * 100) : 0}%
+                      </span>
+                      <span className="perf-stat-lbl">Win rate</span>
+                    </div>
+                    <div className="perf-stat" style={{marginLeft:"auto", fontSize:9, color:"#2a3a55", alignSelf:"center"}}>
+                      Exit = T1 if hit, else EOD close
+                    </div>
+                  </div>
+                )}
+              </>)}
+            </div>
+
+            {/* ── Trade History Table ── */}
             <div className="card">
               <div className="card-title">Trade History</div>
               <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
@@ -2514,7 +3144,8 @@ export default function ORBApp() {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* === CONFIG TAB === */}
         {tab === "configure" && (
@@ -2664,7 +3295,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v2.1.0
+                v2.3.0
               </a>
             </div>
           </div>
@@ -2684,7 +3315,7 @@ export default function ORBApp() {
             className={tab === t.id ? "active" : ""}
             onClick={() => {
               setTab(t.id);
-              if (t.id === "tradelog") fetchTradeLog();
+              if (t.id === "tradelog") { fetchTradeLog(); fetchYesterdayReport(); }
               if (t.id === "futures")  fetchFutures();
               window.scrollTo(0, 0);
             }}>
