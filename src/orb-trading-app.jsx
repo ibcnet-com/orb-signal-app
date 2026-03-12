@@ -443,61 +443,7 @@ const style = `
     margin-top: 16px;
   }
 
-  /* ── Performance Chart & Yesterday Report ── */
-  .perf-section {
-    background: #080b10; border: 1px solid #1e2a3a;
-    border-radius: 14px; padding: 20px; margin-bottom: 20px;
-  }
-  .perf-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
-  }
-  .perf-title { font-size: 13px; font-weight: 700; color: #f0f4f8; }
-  .perf-subtitle { font-size: 10px; color: #475569; margin-top: 2px; }
-  .perf-toggles { display: flex; gap: 6px; flex-wrap: wrap; }
-  .perf-toggle {
-    padding: 4px 10px; border-radius: 6px; font-size: 10px;
-    border: 1px solid #2a3a55; background: transparent; color: #64748b;
-    cursor: pointer; font-family: 'Space Mono', monospace;
-    transition: all 0.2s;
-  }
-  .perf-toggle.active {
-    background: rgba(0,212,170,0.12); border-color: #00d4aa44; color: #00d4aa;
-  }
-  .perf-stats-strip {
-    display: flex; gap: 20px; flex-wrap: wrap;
-    padding: 10px 14px; background: #0d1623;
-    border-radius: 8px; margin-bottom: 16px; font-size: 11px;
-  }
-  .perf-stat { display: flex; flex-direction: column; gap: 2px; }
-  .perf-stat-val { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; color: #f0f4f8; }
-  .perf-stat-lbl { font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em; }
-
-  /* Yesterday rows */
-  .yday-row {
-    display: grid; grid-template-columns: 60px 80px 1fr 80px 60px;
-    align-items: center; gap: 12px;
-    padding: 12px 0; border-bottom: 1px solid #0f1520;
-  }
-  .yday-row:last-child { border-bottom: none; }
-  .yday-ticker { font-size: 13px; font-weight: 700; color: #f0f4f8; font-family: 'Instrument Serif', serif; }
-  .yday-dir { font-size: 10px; font-family: 'Space Mono', monospace; }
-  .yday-bar-wrap { position: relative; height: 8px; background: #1e2a3a; border-radius: 4px; overflow: hidden; }
-  .yday-bar-fill { position: absolute; top: 0; height: 100%; border-radius: 4px; transition: width 0.8s ease; }
-  .yday-pnl { font-size: 12px; font-family: 'Space Mono', monospace; font-weight: 700; text-align: right; }
-  .yday-outcome { text-align: right; }
-  .yday-exit-type { font-size: 9px; color: #475569; margin-top: 2px; }
-  .yday-summary {
-    display: flex; gap: 16px; flex-wrap: wrap;
-    padding: 12px 14px; background: #0d1623;
-    border-radius: 8px; margin-top: 16px; font-size: 11px;
-  }
-
-  @media(max-width:768px) {
-    .yday-row { grid-template-columns: 50px 70px 1fr 70px; }
-    .yday-row > :last-child { display: none; }
-    .perf-stats-strip { gap: 12px; }
-  }
+  /* ── Annotated Simulator Card ── */
   .sim-card {
     background: #080b10;
     border: 1px solid #1e2a3a;
@@ -1084,26 +1030,8 @@ export default function ORBApp() {
   const [tradeLog, setTradeLog]     = useState([]);
   const [tradeStats, setTradeStats] = useState(null);
   const [logLoading, setLogLoading] = useState(false);
-  const [closeModal, setCloseModal] = useState(null);
+  const [closeModal, setCloseModal] = useState(null); // trade being closed
   const [exitPrice, setExitPrice]   = useState("");
-
-  // ── Yesterday ORB Report ──────────────────────────────────────────────────
-  const [yesterdayReport, setYesterdayReport] = useState(null);
-  const [yesterdayLoading, setYesterdayLoading] = useState(false);
-  const [perfView, setPerfView] = useState("pnl");
-
-  async function fetchYesterdayReport() {
-    setYesterdayLoading(true);
-    try {
-      const tickers = watchlist.join(",");
-      const r = await fetch(`${API}/yesterday?tickers=${tickers}&orbWindow=${orbWindow}&maxRisk=${maxRisk}`);
-      const data = await r.json();
-      setYesterdayReport(data);
-    } catch(e) {
-      setYesterdayReport({ error: e.message });
-    }
-    setYesterdayLoading(false);
-  }
 
   async function fetchTradeLog() {
     setLogLoading(true);
@@ -1576,7 +1504,7 @@ export default function ORBApp() {
           {s.news && !s.news.hasNews && (
             <span style={{fontSize:10, padding:"3px 8px", borderRadius:4,
               background:"rgba(0,212,170,0.08)", border:"1px solid #00d4aa33", color:"#00d4aa"}}>
-              No major news
+              ✓ No major news
             </span>
           )}
         </div>
@@ -1598,407 +1526,6 @@ export default function ORBApp() {
       </div>
     );
   }
-
-  // ── Trade Log Tab (extracted to allow useState inside) ─────────────────────
-  function TradeLogTab() {
-    const [perfView, setPerfView] = useState("pnl");
-
-    const closed = tradeLog.filter(t => t.outcome !== "open" && t.pnl_dollar != null);
-    let running = 0;
-    const pnlSeries = closed.map(t => {
-      running += t.pnl_dollar;
-      return { date: new Date(t.logged_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}), pnl: +running.toFixed(0) };
-    });
-    const wrSeries = closed.map((t,i) => {
-      const sl = closed.slice(0,i+1);
-      return { date: new Date(t.logged_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}), wr: +((sl.filter(x=>x.outcome==="win").length/sl.length)*100).toFixed(0) };
-    });
-    const byTicker = {};
-    for (const t of closed) { if (!byTicker[t.ticker]) byTicker[t.ticker]=0; byTicker[t.ticker]+=t.pnl_dollar; }
-    const tickerSeries = Object.entries(byTicker).sort((a,b)=>b[1]-a[1]).map(([ticker,pnl])=>({ticker,pnl:+pnl.toFixed(0)}));
-    const maxAbs = Math.max(...tickerSeries.map(x=>Math.abs(x.pnl)),1);
-    const best   = closed.reduce((b,t)=>t.pnl_dollar>(b?.pnl_dollar??-Infinity)?t:b,null);
-
-    const ydayResults = yesterdayReport?.results?.filter(r=>r.dir!=="none"||r.orbHigh)||[];
-    const ydayDate    = yesterdayReport?.date ? new Date(yesterdayReport.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}) : "—";
-    const ydaySignals = ydayResults.filter(r=>r.dir!=="none");
-    const ydayWins    = ydaySignals.filter(r=>r.outcome==="win").length;
-    const ydayLosses  = ydaySignals.filter(r=>r.outcome==="loss").length;
-    const ydayNet     = ydaySignals.reduce((s,r)=>s+(r.pnl??0),0);
-    const ydayMaxAbs  = Math.max(...ydaySignals.map(r=>Math.abs(r.pnlPct??0)),1);
-
-    return (
-      <div>
-            <div className="perf-section">
-              <div className="perf-header">
-                <div>
-                  <div className="perf-title">📈 My Performance</div>
-                  <div className="perf-subtitle">Based on {closed.length} closed trade{closed.length !== 1 ? "s" : ""}</div>
-                </div>
-                <div className="perf-toggles">
-                  {[["pnl","Cumulative P&amp;L"],["wr","Win Rate"],["ticker","By Ticker"]].map(([v,l]) => (
-                    <button key={v} className={`perf-toggle ${perfView===v?"active":""}`} onClick={()=>setPerfView(v)}>{l}</button>
-                  ))}
-                </div>
-              </div>
-
-              {closed.length === 0 ? (
-                <div className="empty-state" style={{padding:"32px 0"}}>
-                  <div className="icon">📊</div>
-                  <p>No closed trades yet — log and close trades to see your performance chart.</p>
-                </div>
-              ) : (<>
-                {/* Stats strip */}
-                <div className="perf-stats-strip">
-                  <div className="perf-stat">
-                    <span className="perf-stat-val" style={{color: tradeStats?.totalPnl >= 0 ? "#00d4aa" : "#ff4d6d"}}>
-                      {tradeStats?.totalPnl >= 0 ? "+" : ""}{" $"}{tradeStats?.totalPnl ?? 0}
-                    </span>
-                    <span className="perf-stat-lbl">Total P&amp;L</span>
-                  </div>
-                  <div className="perf-stat">
-                    <span className="perf-stat-val">{tradeStats?.winRate ?? 0}%</span>
-                    <span className="perf-stat-lbl">Win Rate</span>
-                  </div>
-                  <div className="perf-stat">
-                    <span className="perf-stat-val">{tradeStats?.total ?? 0}</span>
-                    <span className="perf-stat-lbl">{tradeStats?.wins ?? 0}W / {tradeStats?.losses ?? 0}L</span>
-                  </div>
-                  {best && (
-                    <div className="perf-stat">
-                      <span className="perf-stat-val" style={{color:"#00d4aa"}}>{best.pnl_dollar >= 0 ? "+" : ""}{"$"}{best.pnl_dollar}</span>
-                      <span className="perf-stat-lbl">Best · {best.ticker}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── P&amp;L Chart ── */}
-                {perfView === "pnl" && (
-                  <div style={{overflowX:"auto"}}>
-                    <div style={{minWidth: Math.max(pnlSeries.length * 60, 300), height:160, position:"relative", padding:"0 8px"}}>
-                      {/* Grid lines */}
-                      {[0,25,50,75,100].map(p => (
-                        <div key={p} style={{position:"absolute", left:0, right:0, top:`${100-p}%`,
-                          borderTop:"1px solid #0f1520", pointerEvents:"none"}}/>
-                      ))}
-                      {/* Zero line */}
-                      <div style={{position:"absolute", left:0, right:0,
-                        top: `${100 - ((0 - Math.min(...pnlSeries.map(x=>x.pnl),0)) / (Math.max(...pnlSeries.map(x=>x.pnl),1) - Math.min(...pnlSeries.map(x=>x.pnl),0)) * 100)}%`,
-                        borderTop:"1px solid #2a3a55"}}/>
-                      {/* SVG line chart */}
-                      {(() => {
-                        const vals = pnlSeries.map(x => x.pnl);
-                        const minV = Math.min(...vals, 0);
-                        const maxV = Math.max(...vals, 0);
-                        const range = maxV - minV || 1;
-                        const w = Math.max(pnlSeries.length * 60, 300);
-                        const h = 140;
-                        const pts = pnlSeries.map((x, i) => {
-                          const cx = (i / Math.max(pnlSeries.length - 1, 1)) * (w - 20) + 10;
-                          const cy = h - ((x.pnl - minV) / range) * h;
-                          return { cx, cy, ...x };
-                        });
-                        const polyline = pts.map(p => `${p.cx},${p.cy}`).join(" ");
-                        return (
-                          <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} style={{overflow:"visible"}}>
-                            <defs>
-                              <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#00d4aa" stopOpacity="0.3"/>
-                                <stop offset="100%" stopColor="#00d4aa" stopOpacity="0"/>
-                              </linearGradient>
-                            </defs>
-                            <polygon
-                              points={`10,${h} ${polyline} ${pts[pts.length-1].cx},${h}`}
-                              fill="url(#pnlGrad)"
-                            />
-                            <polyline points={polyline} fill="none" stroke="#00d4aa" strokeWidth="2" strokeLinejoin="round"/>
-                            {pts.map((p, i) => (
-                              <g key={i}>
-                                <circle cx={p.cx} cy={p.cy} r={4}
-                                  fill={p.pnl >= 0 ? "#00d4aa" : "#ff4d6d"} stroke="#080b10" strokeWidth={2}/>
-                                <text x={p.cx} y={h + 14} textAnchor="middle" fontSize={9} fill="#475569">{p.date}</text>
-                              </g>
-                            ))}
-                          </svg>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Win Rate Chart ── */}
-                {perfView === "wr" && (
-                  <div style={{overflowX:"auto"}}>
-                    <div style={{minWidth: Math.max(wrSeries.length * 60, 300), height:160, display:"flex", alignItems:"flex-end", gap:4, paddingBottom:20, position:"relative"}}>
-                      <div style={{position:"absolute", left:0, right:0, top:"50%", borderTop:"1px dashed #2a3a55", fontSize:9, color:"#2a3a55"}}> &nbsp;50%</div>
-                      {wrSeries.map((x, i) => (
-                        <div key={i} style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4, minWidth:50}}>
-                          <div style={{fontSize:9, color: x.wr >= 50 ? "#00d4aa" : "#ff4d6d", fontFamily:"'Space Mono',monospace"}}>{x.wr}%</div>
-                          <div style={{
-                            width:"100%", borderRadius:"4px 4px 0 0",
-                            height:`${x.wr}%`, maxHeight:120,
-                            background: x.wr >= 60 ? "#00d4aa" : x.wr >= 45 ? "#facc15" : "#ff4d6d",
-                            opacity:0.7, transition:"height 0.6s ease",
-                          }}/>
-                          <div style={{fontSize:9, color:"#475569"}}>{x.date}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── By Ticker Chart ── */}
-                {perfView === "ticker" && (
-                  <div style={{display:"flex", flexDirection:"column", gap:10}}>
-                    {tickerSeries.map((x, i) => (
-                      <div key={i} style={{display:"grid", gridTemplateColumns:"60px 1fr 80px", alignItems:"center", gap:12}}>
-                        <span style={{fontSize:12, fontWeight:700, color:"#f0f4f8", fontFamily:"'Instrument Serif',serif"}}>{x.ticker}</span>
-                        <div style={{position:"relative", height:8, background:"#1e2a3a", borderRadius:4, overflow:"hidden"}}>
-                          <div style={{
-                            position:"absolute", top:0, height:"100%", borderRadius:4,
-                            width:`${(Math.abs(x.pnl) / maxAbs) * 100}%`,
-                            background: x.pnl >= 0 ? "#00d4aa" : "#ff4d6d",
-                            left: x.pnl >= 0 ? 0 : "auto", right: x.pnl < 0 ? 0 : "auto",
-                          }}/>
-                        </div>
-                        <span style={{fontSize:12, fontFamily:"'Space Mono',monospace", fontWeight:700,
-                          color: x.pnl >= 0 ? "#00d4aa" : "#ff4d6d", textAlign:"right"}}>
-                          {x.pnl >= 0 ? "+" : ""}{" $"}{x.pnl}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>)}
-            </div>
-
-            {/* ── Section 2: Yesterday's ORB Report ── */}
-            <div className="perf-section">
-              <div className="perf-header">
-                <div>
-                  <div className="perf-title">📊 Yesterday's ORB Report</div>
-                  <div className="perf-subtitle">
-                    {yesterdayLoading ? "Loading..." : ydayDate ? `${ydayDate} · If you had acted on every signal` : "No data yet"}
-                  </div>
-                </div>
-                <button className="perf-toggle" onClick={fetchYesterdayReport} disabled={yesterdayLoading}
-                  style={{fontSize:10}}>
-                  {yesterdayLoading ? "⟳" : "↻ Refresh"}
-                </button>
-              </div>
-
-              {yesterdayLoading && (
-                <div style={{color:"#475569", fontSize:12, padding:"20px 0", textAlign:"center"}}>
-                  ⟳ Fetching yesterday's data for {watchlist.length} tickers...
-                </div>
-              )}
-
-              {!yesterdayLoading && yesterdayReport?.error && (
-                <div style={{color:"#ff4d6d", fontSize:12, padding:"12px 0"}}>⚠ {yesterdayReport.error}</div>
-              )}
-
-              {!yesterdayLoading && ydayResults.length === 0 && !yesterdayReport?.error && (
-                <div className="empty-state" style={{padding:"32px 0"}}>
-                  <div className="icon">📊</div>
-                  <p>Switch to the Trade Log tab to load yesterday's report,<br/>or click Refresh above.</p>
-                </div>
-              )}
-
-              {!yesterdayLoading && ydayResults.length > 0 && (<>
-                {/* All tickers */}
-                {ydayResults.map((r, i) => {
-                  const isLong  = r.dir === "long";
-                  const isShort = r.dir === "short";
-                  const noSig   = r.dir === "none";
-                  const barPct  = noSig ? 0 : Math.min((Math.abs(r.pnlPct ?? 0) / ydayMaxAbs) * 100, 100);
-                  const color   = r.outcome === "win" ? "#00d4aa" : r.outcome === "loss" ? "#ff4d6d" : "#475569";
-                  return (
-                    <div className="yday-row" key={i}>
-                      <span className="yday-ticker">{r.ticker}</span>
-                      <span className="yday-dir" style={{color: isLong ? "#00d4aa" : isShort ? "#ff4d6d" : "#475569"}}>
-                        {noSig ? "— No signal" : isLong ? "▲ LONG" : "▼ SHORT"}
-                      </span>
-                      <div>
-                        <div className="yday-bar-wrap">
-                          {!noSig && (
-                            <div className="yday-bar-fill" style={{
-                              width:`${barPct}%`, background:color,
-                              left: isLong ? 0 : "auto", right: isShort ? 0 : "auto",
-                            }}/>
-                          )}
-                        </div>
-                        {!noSig && (
-                          <div className="yday-exit-type">
-                            Entry {"$"}{r.entry} → {r.exitType} {"$"}{r.exitPrice}
-                          </div>
-                        )}
-                        {noSig && <div className="yday-exit-type">ORB {r.orbLow}–{r.orbHigh}</div>}
-                      </div>
-                      <div>
-                        {!noSig && (
-                          <div className="yday-pnl" style={{color}}>
-                            {r.pnl >= 0 ? "+" : ""}{" $"}{r.pnl}
-                          </div>
-                        )}
-                        <div className="yday-exit-type" style={{textAlign:"right"}}>
-                          {!noSig && `${r.pnlPct > 0 ? "+" : ""}${r.pnlPct}%`}
-                        </div>
-                      </div>
-                      <div className="yday-outcome">
-                        {!noSig && (
-                          <span className={`badge ${r.outcome === "win" ? "high" : r.outcome === "loss" ? "low" : "med"}`}>
-                            {r.outcome}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Summary */}
-                {ydaySignals.length > 0 && (
-                  <div className="yday-summary">
-                    <div className="perf-stat">
-                      <span className="perf-stat-val">{ydaySignals.length}</span>
-                      <span className="perf-stat-lbl">Signals fired</span>
-                    </div>
-                    <div className="perf-stat">
-                      <span className="perf-stat-val" style={{color:"#00d4aa"}}>{ydayWins}W</span>
-                      <span className="perf-stat-lbl">Wins</span>
-                    </div>
-                    <div className="perf-stat">
-                      <span className="perf-stat-val" style={{color:"#ff4d6d"}}>{ydayLosses}L</span>
-                      <span className="perf-stat-lbl">Losses</span>
-                    </div>
-                    <div className="perf-stat">
-                      <span className="perf-stat-val" style={{color: ydayNet >= 0 ? "#00d4aa" : "#ff4d6d"}}>
-                        {ydayNet >= 0 ? "+" : ""}{" $"}{ydayNet.toFixed(0)}
-                      </span>
-                      <span className="perf-stat-lbl">Net P&amp;L</span>
-                    </div>
-                    <div className="perf-stat">
-                      <span className="perf-stat-val">
-                        {ydaySignals.length > 0 ? Math.round((ydayWins / ydaySignals.length) * 100) : 0}%
-                      </span>
-                      <span className="perf-stat-lbl">Win rate</span>
-                    </div>
-                    <div className="perf-stat" style={{marginLeft:"auto", fontSize:9, color:"#2a3a55", alignSelf:"center"}}>
-                      Exit = T1 if hit, else EOD close
-                    </div>
-                  </div>
-                )}
-              </>)}
-            </div>
-
-            {/* ── Trade History Table ── */}
-            <div className="card">
-              <div className="card-title">Trade History</div>
-              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
-                <p style={{fontSize:11, color:"#475569"}}>
-                  {logLoading ? "Loading..." : `${tradeLog.length} trades recorded`}
-                </p>
-                <a href={`${API}/trades/export`} target="_blank"
-                  className="btn btn-ghost" style={{fontSize:10, padding:"6px 12px", textDecoration:"none"}}>
-                  ⬇ Export CSV
-                </a>
-              </div>
-
-              {tradeLog.length === 0 && !logLoading && (
-                <div className="empty-state">
-                  <div className="icon">📋</div>
-                  <p>No trades logged yet.<br/>Click "+ Log Trade" on any signal to record it.</p>
-                </div>
-              )}
-
-              {tradeLog.length > 0 && (
-                <div style={{overflowX:"auto"}}>
-                  <table style={{width:"100%", borderCollapse:"collapse", fontSize:11}}>
-                    <thead>
-                      <tr style={{borderBottom:"1px solid #1e2a3a", color:"#475569", textAlign:"left"}}>
-                        {["Ticker","Dir","Entry","Stop","Target","Exit","Outcome","P&amp;L","Conf","Logged"].map(h => (
-                          <th key={h} style={{padding:"8px 10px", fontWeight:"normal", letterSpacing:"0.1em", textTransform:"uppercase", fontSize:10}}>{h}</th>
-                        ))}
-                        <th style={{padding:"8px 10px"}}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tradeLog.map(t => (
-                        <tr key={t.id} style={{borderBottom:"1px solid #0f1520"}}>
-                          <td style={{padding:"10px", color:"#f0f4f8", fontWeight:"bold"}}>{t.ticker}</td>
-                          <td style={{padding:"10px", color: t.dir === "long" ? "#00d4aa" : "#ff4d6d"}}>{t.dir === "long" ? "▲ Long" : "▼ Short"}</td>
-                          <td style={{padding:"10px", color:"#94a3b8"}}>${t.entry_price}</td>
-                          <td style={{padding:"10px", color:"#ff4d6d"}}>${t.stop_price}</td>
-                          <td style={{padding:"10px", color:"#00d4aa"}}>${t.target_price}</td>
-                          <td style={{padding:"10px", color:"#94a3b8"}}>{t.exit_price ? `$${t.exit_price}` : "—"}</td>
-                          <td style={{padding:"10px"}}>
-                            <span className={`badge ${t.outcome === "win" ? "high" : t.outcome === "loss" ? "low" : "med"}`}>
-                              {t.outcome}
-                            </span>
-                          </td>
-                          <td style={{padding:"10px", color: t.pnl_dollar > 0 ? "#00d4aa" : t.pnl_dollar < 0 ? "#ff4d6d" : "#475569"}}>
-                            {t.pnl_dollar != null ? `${t.pnl_dollar > 0 ? "+" : ""}$${t.pnl_dollar} (${t.pnl_pct}%)` : "—"}
-                          </td>
-                          <td style={{padding:"10px"}}>
-                            <span className={`badge ${t.confidence}`}>{t.confidence}</span>
-                          </td>
-                          <td style={{padding:"10px", color:"#475569"}}>
-                            {new Date(t.logged_at).toLocaleDateString("en-US", {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"})}
-                          </td>
-                          <td style={{padding:"10px"}}>
-                            {t.outcome === "open" && (
-                              <button className="btn btn-ghost" onClick={() => setCloseModal(t)}
-                                style={{fontSize:9, padding:"4px 10px"}}>
-                                Close
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Close Trade Modal */}
-            {closeModal && (
-              <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000}}>
-                <div className="card" style={{width:340, margin:0}}>
-                  <div className="card-title">Close Trade — {closeModal.ticker}</div>
-                  <p style={{fontSize:12, color:"#94a3b8", marginBottom:16}}>
-                    {closeModal.dir === "long" ? "▲ Long" : "▼ Short"} · Entry: {"$"}{closeModal.entry_price}
-                  </p>
-                  <div className="slider-row">
-                    <label>Exit Price</label>
-                    <input type="number" value={exitPrice} onChange={e => setExitPrice(e.target.value)}
-                      placeholder={`e.g. ${closeModal.target_price}`}
-                      style={{width:"100%", background:"#0f1520", border:"1px solid #2a3a55", borderRadius:6,
-                        padding:"8px 12px", color:"#e2e8f0", fontFamily:"'Space Mono', monospace", fontSize:12, outline:"none"}} />
-                  </div>
-                  <div style={{display:"flex", gap:8, marginTop:12}}>
-                    <button className="btn btn-primary" style={{flex:1}}
-                      onClick={() => closeTrade(closeModal.id, exitPrice, parseFloat(exitPrice) > closeModal.entry_price === (closeModal.dir === "long") ? "win" : "loss")}>
-                      Close as {exitPrice && (parseFloat(exitPrice) > closeModal.entry_price === (closeModal.dir === "long") ? "WIN" : "LOSS")}
-                    </button>
-                    <button className="btn btn-ghost" onClick={() => closeTrade(closeModal.id, closeModal.entry_price, "cancelled")}>
-                      Cancel Trade
-                    </button>
-                  </div>
-                  <button className="btn btn-ghost" style={{width:"100%", marginTop:8}}
-                    onClick={() => { setCloseModal(null); setExitPrice(""); }}>
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-          </div>
-    );
-  } // end TradeLogTab
 
   return (
     <div className="app">
@@ -2059,7 +1586,7 @@ export default function ORBApp() {
             { id: "tradelog",  label: "📋 Trade Log" },
             { id: "configure", label: "⚙️ Alert Config" },
           ].map(t => (
-            <button key={t.id} className={`tab ${tab===t.id?"active":""}`} onClick={()=>{ setTab(t.id); if(t.id==="tradelog") { fetchTradeLog(); fetchYesterdayReport(); } if(t.id==="futures") fetchFutures(); }}>
+            <button key={t.id} className={`tab ${tab===t.id?"active":""}`} onClick={()=>{ setTab(t.id); if(t.id==="tradelog") fetchTradeLog(); if(t.id==="futures") fetchFutures(); }}>
               {t.label}
             </button>
           ))}
@@ -2446,8 +1973,131 @@ export default function ORBApp() {
         )}
 
         {/* === TRADE LOG TAB === */}
-        {tab === "tradelog" && <TradeLogTab />}
+        {tab === "tradelog" && (
+          <div>
+            {tradeStats && (
+              <div className="grid-3" style={{marginBottom:20}}>
+                <div className="stat-box">
+                  <span className="val" style={{fontSize:24}}>{tradeStats.winRate}%</span>
+                  <span className="lbl">Win Rate</span>
+                </div>
+                <div className="stat-box">
+                  <span className="val" style={{fontSize:24, color: tradeStats.totalPnl >= 0 ? "#00d4aa" : "#ff4d6d"}}>
+                    ${tradeStats.totalPnl >= 0 ? "+" : ""}{tradeStats.totalPnl}
+                  </span>
+                  <span className="lbl">Total P&L</span>
+                </div>
+                <div className="stat-box">
+                  <span className="val" style={{fontSize:24}}>{tradeStats.total}</span>
+                  <span className="lbl">Total Trades ({tradeStats.wins}W / {tradeStats.losses}L)</span>
+                </div>
+              </div>
+            )}
 
+            <div className="card">
+              <div className="card-title">Trade History</div>
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
+                <p style={{fontSize:11, color:"#475569"}}>
+                  {logLoading ? "Loading..." : `${tradeLog.length} trades recorded`}
+                </p>
+                <a href={`${API}/trades/export`} target="_blank"
+                  className="btn btn-ghost" style={{fontSize:10, padding:"6px 12px", textDecoration:"none"}}>
+                  ⬇ Export CSV
+                </a>
+              </div>
+
+              {tradeLog.length === 0 && !logLoading && (
+                <div className="empty-state">
+                  <div className="icon">📋</div>
+                  <p>No trades logged yet.<br/>Click "+ Log Trade" on any signal to record it.</p>
+                </div>
+              )}
+
+              {tradeLog.length > 0 && (
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%", borderCollapse:"collapse", fontSize:11}}>
+                    <thead>
+                      <tr style={{borderBottom:"1px solid #1e2a3a", color:"#475569", textAlign:"left"}}>
+                        {["Ticker","Dir","Entry","Stop","Target","Exit","Outcome","P&L","Conf","Logged"].map(h => (
+                          <th key={h} style={{padding:"8px 10px", fontWeight:"normal", letterSpacing:"0.1em", textTransform:"uppercase", fontSize:10}}>{h}</th>
+                        ))}
+                        <th style={{padding:"8px 10px"}}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tradeLog.map(t => (
+                        <tr key={t.id} style={{borderBottom:"1px solid #0f1520"}}>
+                          <td style={{padding:"10px", color:"#f0f4f8", fontWeight:"bold"}}>{t.ticker}</td>
+                          <td style={{padding:"10px", color: t.dir === "long" ? "#00d4aa" : "#ff4d6d"}}>{t.dir === "long" ? "▲ Long" : "▼ Short"}</td>
+                          <td style={{padding:"10px", color:"#94a3b8"}}>${t.entry_price}</td>
+                          <td style={{padding:"10px", color:"#ff4d6d"}}>${t.stop_price}</td>
+                          <td style={{padding:"10px", color:"#00d4aa"}}>${t.target_price}</td>
+                          <td style={{padding:"10px", color:"#94a3b8"}}>{t.exit_price ? `$${t.exit_price}` : "—"}</td>
+                          <td style={{padding:"10px"}}>
+                            <span className={`badge ${t.outcome === "win" ? "high" : t.outcome === "loss" ? "low" : "med"}`}>
+                              {t.outcome}
+                            </span>
+                          </td>
+                          <td style={{padding:"10px", color: t.pnl_dollar > 0 ? "#00d4aa" : t.pnl_dollar < 0 ? "#ff4d6d" : "#475569"}}>
+                            {t.pnl_dollar != null ? `${t.pnl_dollar > 0 ? "+" : ""}$${t.pnl_dollar} (${t.pnl_pct}%)` : "—"}
+                          </td>
+                          <td style={{padding:"10px"}}>
+                            <span className={`badge ${t.confidence}`}>{t.confidence}</span>
+                          </td>
+                          <td style={{padding:"10px", color:"#475569"}}>
+                            {new Date(t.logged_at).toLocaleDateString("en-US", {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"})}
+                          </td>
+                          <td style={{padding:"10px"}}>
+                            {t.outcome === "open" && (
+                              <button className="btn btn-ghost" onClick={() => setCloseModal(t)}
+                                style={{fontSize:9, padding:"4px 10px"}}>
+                                Close
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Close Trade Modal */}
+            {closeModal && (
+              <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000}}>
+                <div className="card" style={{width:340, margin:0}}>
+                  <div className="card-title">Close Trade — {closeModal.ticker}</div>
+                  <p style={{fontSize:12, color:"#94a3b8", marginBottom:16}}>
+                    {closeModal.dir === "long" ? "▲ Long" : "▼ Short"} · Entry: ${closeModal.entry_price}
+                  </p>
+                  <div className="slider-row">
+                    <label>Exit Price</label>
+                    <input type="number" value={exitPrice} onChange={e => setExitPrice(e.target.value)}
+                      placeholder={`e.g. ${closeModal.target_price}`}
+                      style={{width:"100%", background:"#0f1520", border:"1px solid #2a3a55", borderRadius:6,
+                        padding:"8px 12px", color:"#e2e8f0", fontFamily:"'Space Mono', monospace", fontSize:12, outline:"none"}} />
+                  </div>
+                  <div style={{display:"flex", gap:8, marginTop:12}}>
+                    <button className="btn btn-primary" style={{flex:1}}
+                      onClick={() => closeTrade(closeModal.id, exitPrice, parseFloat(exitPrice) > closeModal.entry_price === (closeModal.dir === "long") ? "win" : "loss")}>
+                      ✓ Close as {exitPrice && (parseFloat(exitPrice) > closeModal.entry_price === (closeModal.dir === "long") ? "WIN" : "LOSS")}
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => closeTrade(closeModal.id, closeModal.entry_price, "cancelled")}>
+                      Cancel Trade
+                    </button>
+                  </div>
+                  <button className="btn btn-ghost" style={{width:"100%", marginTop:8}}
+                    onClick={() => { setCloseModal(null); setExitPrice(""); }}>
+                    ✕ Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* === CONFIG TAB === */}
         {tab === "configure" && (
           <div className="grid-2">
             <div>
@@ -2595,7 +2245,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v2.3.0
+                v2.2.0
               </a>
             </div>
           </div>
@@ -2615,7 +2265,7 @@ export default function ORBApp() {
             className={tab === t.id ? "active" : ""}
             onClick={() => {
               setTab(t.id);
-              if (t.id === "tradelog") { fetchTradeLog(); fetchYesterdayReport(); }
+              if (t.id === "tradelog") fetchTradeLog();
               if (t.id === "futures")  fetchFutures();
               window.scrollTo(0, 0);
             }}>
