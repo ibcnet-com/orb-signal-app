@@ -475,3 +475,5 @@ app.listen(PORT, () => {
   console.log(`   /quote   → Live prices`);
   console.log(`   /futures → Futures + pre-market data\n`);
 });
+
+app.get('/nettest', async (req, res) => { try { const r = await fetch('https://httpbin.org/get'); const d = await r.json(); res.json({ok:true, ip: d.origin}); } catch(e) { res.json({ok:false, error: e.message}); } });
