@@ -874,7 +874,7 @@ function ORBChart({ orbHigh = 182.5, orbLow = 179.8, breakout = true }) {
   );
 }
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API = import.meta.env.VITE_API_URL || "https://orb-signal-app-production.up.railway.app";
 
 const DEFAULT_WATCHLIST = ["SPY", "QQQ", "AAPL", "TSLA"];
 
