@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ORBsignal - Yahoo Finance Proxy Server
  * Run with: node server.js
  */
@@ -13,11 +13,11 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// â”€â”€â”€ Health check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Health check ─────────────────────────────────────────────────────────────
 app.get("/", (req, res) => res.json({ status: "ok", service: "ORBsignal" }));
 
-// â”€â”€â”€ FOMC / CPI / High-Impact Economic Calendar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Sources: federalreserve.gov, bls.gov â€” updated for 2025-2026
+// ─── FOMC / CPI / High-Impact Economic Calendar ───────────────────────────────
+// Sources: federalreserve.gov, bls.gov — updated for 2025-2026
 const HIGH_IMPACT_DATES = {
   // FOMC Meeting dates (decision days)
   "2025-01-29": { type: "FOMC", label: "FOMC Rate Decision" },
@@ -83,7 +83,7 @@ function checkEconomicCalendar() {
   return event ? { hasEvent: true, ...event } : { hasEvent: false };
 }
 
-// â”€â”€â”€ Yahoo Finance news check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Yahoo Finance news check ─────────────────────────────────────────────────
 async function fetchTickerNews(ticker) {
   try {
     const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=5&enableFuzzyQuery=false`;
@@ -136,7 +136,7 @@ function detectORB(candles, orbMinutes = 15, volFilterPct = 150) {
   const orbLow     = Math.min(...orbCandles.map(c => c.low));
   const avgOrbVol  = orbCandles.reduce((s, c) => s + c.volume, 0) / orbCandles.length;
 
-  // â”€â”€ Avoid rule: tiny ORB range < 0.2% â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Avoid rule: tiny ORB range < 0.2% ──────────────────────────────────────
   const orbRangePct = ((orbHigh - orbLow) / orbLow) * 100;
   const tinyRange   = orbRangePct < 0.2;
 
@@ -150,10 +150,10 @@ function detectORB(candles, orbMinutes = 15, volFilterPct = 150) {
       return { dir: "short", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +candle.close.toFixed(2), vol: `+${volPct}% avg`, time, conf, reason: `Closed below ORB low $${orbLow.toFixed(2)} with ${volPct}% avg vol` };
   }
   const latest = candles[candles.length - 1];
-  return { dir: "none", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +latest.close.toFixed(2), vol: "â€”", time: latest.time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }), conf: "low", reason: `No breakout yet. Range: $${orbLow.toFixed(2)} â€“ $${orbHigh.toFixed(2)}` };
+  return { dir: "none", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +latest.close.toFixed(2), vol: "—", time: latest.time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }), conf: "low", reason: `No breakout yet. Range: $${orbLow.toFixed(2)} – $${orbHigh.toFixed(2)}` };
 }
 
-// â”€â”€ SPY trend helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── SPY trend helper ──────────────────────────────────────────────────────────
 async function getSpyTrend() {
   try {
     const candles = await fetchCandles("SPY");
@@ -168,7 +168,7 @@ async function getSpyTrend() {
   }
 }
 
-// â”€â”€â”€ Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Routes ───────────────────────────────────────────────────────────────────
 app.get("/scan", async (req, res) => {
   const tickers   = (req.query.tickers || "SPY,QQQ").split(",").map(t => t.trim().toUpperCase());
   const orbWindow = parseInt(req.query.orbWindow) || 15;
@@ -210,7 +210,7 @@ app.get("/quote", async (req, res) => {
   res.json({ quotes: results.filter(r => r.status === "fulfilled").map(r => r.value) });
 });
 
-// â”€â”€â”€ Futures quotes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Futures quotes ───────────────────────────────────────────────────────────
 const FUTURES = [
   { symbol: "ES=F",  name: "S&P 500",      category: "index" },
   { symbol: "NQ=F",  name: "Nasdaq 100",   category: "index" },
@@ -278,7 +278,7 @@ app.get("/futures", async (req, res) => {
   });
 });
 
-// â”€â”€â”€ Trade Log (JSON file persistence) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Trade Log (JSON file persistence) ───────────────────────────────────────
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -377,9 +377,9 @@ app.get("/trades/export", (req, res) => {
   res.send([header, ...rows].join("\r\n"));
 });
 
-// â”€â”€â”€ Yesterday's ORB Report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Yesterday's ORB Report ───────────────────────────────────────────────────
 async function fetchYesterdayCandles(ticker) {
-  // range=5d gives us multiple days of 1m data â€” we extract yesterday's session
+  // range=5d gives us multiple days of 1m data — we extract yesterday's session
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=5d&includePrePost=false`;
   const res  = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
   if (!res.ok) throw new Error(`Yahoo ${res.status} for ${ticker}`);
@@ -470,12 +470,10 @@ app.get("/yesterday", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\nâœ… ORBsignal server running on port ${PORT}`);
-  console.log(`   /scan    â†’ ORB breakout detection`);
-  console.log(`   /quote   â†’ Live prices`);
-  console.log(`   /futures â†’ Futures + pre-market data\n`);
+  console.log(`\n✅ ORBsignal server running on port ${PORT}`);
+  console.log(`   /scan    → ORB breakout detection`);
+  console.log(`   /quote   → Live prices`);
+  console.log(`   /futures → Futures + pre-market data\n`);
 });
-
-app.get('/nettest', async (req, res) => { try { const r = await fetch('https://httpbin.org/get'); const d = await r.json(); res.json({ok:true, ip: d.origin}); } catch(e) { res.json({ok:false, error: e.message}); } });
 
 app.get('/nettest', async (req, res) => { try { const r = await fetch('https://httpbin.org/get'); const d = await r.json(); res.json({ok:true, ip: d.origin}); } catch(e) { res.json({ok:false, error: e.message}); } });
