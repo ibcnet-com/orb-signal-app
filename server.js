@@ -132,6 +132,21 @@ function etDateStr() {
   return et.toISOString().slice(0, 10);
 }
 
+// Polygon.io data fetcher
+const POLYGON_KEY = process.env.POLYGON_API_KEY || "LnOseGB36TNkPlYRAMclC4ulkZmIzirI";
+
+async function polygonFetch(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Polygon " + res.status);
+  return res.json();
+}
+
+function etDateStr() {
+  const now = new Date();
+  const et  = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  return et.toISOString().slice(0, 10);
+}
+
 async function fetchCandles(ticker) {
   const date = etDateStr();
   const url  = "https://api.polygon.io/v2/aggs/ticker/" + ticker + "/range/1/minute/" + date + "/" + date + "?adjusted=true&sort=asc&limit=500&apiKey=" + POLYGON_KEY;
