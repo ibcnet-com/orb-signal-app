@@ -102,26 +102,79 @@ async function fetchTickerNews(ticker) {
       allCount:  news.length,
     };
   } catch {
-    returnasync function fetchCandles(ticker) {
-  const data = await yahooFinance.chart(ticker, {
-    interval: "1m",
-    range: "1d",
-    includePrePost: false,
-  });
-  const quotes = data?.quotes || [];
-  return quotes
-    .filter(q => q.open != null && q.close != null)
-    .map(q => ({
-      time:   new Date(q.date),
-      open:   q.open,
-      high:   q.high,
-      low:    q.low,
-      close:  q.close,
-      volume: q.volume || 0,
-    }));
+    return// Polygon.io data fetcher
+const POLYGON_KEY = process.env.POLYGON_API_KEY || "LnOseGB36TNkPlYRAMclC4ulkZmIzirI";
+
+async function polygonFetch(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Polygon " + res.status);
+  return res.json();
 }
 
-> c.open !== null && c.close !== null);
+function etDateStr() {
+  const now = new Date();
+  const et  = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  return et.toISOString().slice(0, 10);
+}
+
+async function fetchCandles(ticker) {
+  const date = etDateStr();
+  const url  = "https://api.polygon.io/v2/aggs/ticker/" + ticker + "/range/1/minute/" + date + "/" + date + "?adjusted=true&sort=asc&limit=500&apiKey=" + POLYGON_KEY;
+  const json = await polygonFetch(url);
+  if (json.status === "ERROR") throw new Error(json.error || "Polygon error for " + ticker);
+  if (!json.results || json.results.length === 0) throw new Error("No candle data for " + ticker + " on " + date);
+  return json.results.map(bar => ({
+    time:   new Date(bar.t),
+    open:   bar.o,
+    high:   bar.h,
+    low:    bar.l,
+    close:  bar.c,
+    volume: bar.v || 0,
+  }));
+}
+
+async function fetchPolygonSnapshot(ticker) {
+  try {
+    const url  = "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/" + ticker + "?apiKey=" + POLYGON_KEY;
+    const json = await polygonFetch(url);
+    const snap = json.ticker;
+    if (!snap) return null;
+    return {
+      price:  snap.day?.c || snap.lastTrade?.p || null,
+      change: snap.todaysChangePerc ? +snap.todaysChangePerc.toFixed(2) : null,
+      volume: snap.day?.v || null,
+    };
+  } catch { return null; }
+}
+
+async function fetchPolygonFuturesQuote(symbol) {
+  try {
+    const map = {
+      "ES=F": "I:SPX", "NQ=F": "I:NDX", "YM=F": "I:DJI", "RTY=F": "I:RUT",
+      "CL=F": "CL", "GC=F": "GLD", "ZB=F": "TLT",
+    };
+    const pt = map[symbol];
+    if (!pt) return null;
+    let url, price = null, change = null, high = null, low = null;
+    if (pt.startsWith("I:")) {
+      url = "https://api.polygon.io/v3/snapshot?ticker.any_of=" + pt + "&apiKey=" + POLYGON_KEY;
+      const json = await polygonFetch(url);
+      const r = json.results?.[0];
+      price  = r?.session?.close || r?.value || null;
+      change = r?.session?.change_percent != null ? +r.session.change_percent.toFixed(2) : null;
+      high   = r?.session?.high || null;
+      low    = r?.session?.low  || null;
+    } else {
+      url = "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/" + pt + "?apiKey=" + POLYGON_KEY;
+      const json = await polygonFetch(url);
+      const snap = json.ticker;
+      price  = snap?.day?.c || snap?.lastTrade?.p || null;
+      change = snap?.todaysChangePerc != null ? +snap.todaysChangePerc.toFixed(2) : null;
+      high   = snap?.day?.h || null;
+      low    = snap?.day?.l || null;
+    }
+    return { price, change, high, low };
+  } catch { return null; }
 }
 
 function detectORB(candles, orbMinutes = 15, volFilterPct = 150) {
@@ -199,167 +252,47 @@ app.get("/scan", async (req, res) => {
 });
 
 app.get("/quote", async (req, res) => {
-  const tickers = (req.query.tickers || "SPY,QQQ,VIX").split(",").map(t => t.trim().toUpperCase());
-  const results = await Promise.allSettled(tickers.map(async ticker => {
-    const candles = await fetchCandles(ticker);
-    if (!candles.length) return { ticker, price: null, change: null };
-    const latest = candles[candles.length - 1];
-    const prev   = candles[candles.length - 2] ?? candles[0];
-    return { ticker, price: +latest.close.toFixed(2), change: +(((latest.close - prev.close) / prev.close) * 100).toFixed(2) };
+  const tickers = (req.query.tickers || "SPY,QQQ,VIX").split(",");
+  const quotes  = {};
+  await Promise.all(tickers.map(async t => {
+    try {
+      const snap = await fetchPolygonSnapshot(t);
+      if (snap) quotes[t] = snap;
+    } catch {}
   }));
-  res.json({ quotes: results.filter(r => r.status === "fulfilled").map(r => r.value) });
+  res.json({ quotes, fetchedAt: new Date().toISOString() });
 });
 
-// ─── Futures quotes ───────────────────────────────────────────────────────────
-const FUTURES = [
-  { symbol: "ES=F",  name: "S&P 500",      category: "index" },
-  { symbol: "NQ=F",  name: "Nasdaq 100",   category: "index" },
-  { symbol: "YM=F",  name: "Dow Jones",    category: "index" },
-  { symbol: "RTY=F", name: "Russell 2000", category: "index" },
-  { symbol: "CL=F",  name: "Crude Oil",    category: "commodity" },
-  { symbol: "GC=F",  name: "Gold",         category: "commodity" },
-  { symbol: "ZB=F",  name: "Treasury 30Y", category: "bond" },
-];
-
-async function fetchFuturesQuote(symbol, name, category) {
-  try {
-    // Use longer range to get prev close for accurate change %
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=5m&range=2d&includePrePost=true`;
-    const res  = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-    });
-    if (!res.ok) return { symbol, name, category, price: null, change: null, prevClose: null };
-    const json     = await res.json();
-    const result   = json?.chart?.result?.[0];
-    if (!result)   return { symbol, name, category, price: null, change: null };
-    const closes   = result.indicators.quote[0].close.filter(Boolean);
-    const meta     = result.meta;
-    const price    = +(meta.regularMarketPrice ?? closes[closes.length - 1]).toFixed(2);
-    const prevClose = +(meta.chartPreviousClose ?? meta.previousClose ?? closes[0]).toFixed(2);
-    const change   = prevClose ? +(((price - prevClose) / prevClose) * 100).toFixed(2) : null;
-    const high     = meta.regularMarketDayHigh ? +meta.regularMarketDayHigh.toFixed(2) : null;
-    const low      = meta.regularMarketDayLow  ? +meta.regularMarketDayLow.toFixed(2)  : null;
-    const trend    = change > 0.3 ? "up" : change < -0.3 ? "down" : "flat";
-    return { symbol, name, category, price, prevClose, change, high, low, trend };
-  } catch (e) {
-    return { symbol, name, category, price: null, change: null, error: e.message };
-  }
-}
-
-async function fetchPremarket(ticker) {
-  try {
-    const url  = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=5m&range=2d&includePrePost=true`;
-    const res  = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
-    if (!res.ok) return { ticker, prePrice: null, gapPct: null };
-    const json   = await res.json();
-    const result = json?.chart?.result?.[0];
-    if (!result) return { ticker, prePrice: null, gapPct: null };
-    const meta      = result.meta;
-    const prevClose = +(meta.chartPreviousClose ?? meta.previousClose ?? 0).toFixed(2);
-    const prePrice  = +(meta.preMarketPrice ?? meta.regularMarketPrice ?? 0).toFixed(2);
-    const gapPct    = prevClose ? +(((prePrice - prevClose) / prevClose) * 100).toFixed(2) : null;
-    const gapDir    = gapPct > 0.5 ? "up" : gapPct < -0.5 ? "down" : "flat";
-    return { ticker, prePrice, prevClose, gapPct, gapDir };
-  } catch {
-    return { ticker, prePrice: null, gapPct: null };
-  }
-}
 
 app.get("/futures", async (req, res) => {
-  const watchlist = (req.query.tickers || "").split(",").map(t => t.trim().toUpperCase()).filter(Boolean);
-  const [futuresResults, premarketResults] = await Promise.all([
-    Promise.allSettled(FUTURES.map(f => fetchFuturesQuote(f.symbol, f.name, f.category))),
-    Promise.allSettled(watchlist.map(t => fetchPremarket(t))),
-  ]);
-  res.json({
-    futures:   futuresResults.filter(r => r.status === "fulfilled").map(r => r.value),
-    premarket: premarketResults.filter(r => r.status === "fulfilled").map(r => r.value),
-    fetchedAt: new Date().toISOString(),
-  });
+  const FUTURES = [
+    { symbol: "ES=F",  name: "S&P 500",      category: "index"     },
+    { symbol: "NQ=F",  name: "Nasdaq 100",   category: "index"     },
+    { symbol: "YM=F",  name: "Dow Jones",    category: "index"     },
+    { symbol: "RTY=F", name: "Russell 2000", category: "index"     },
+    { symbol: "CL=F",  name: "Crude Oil",    category: "commodity" },
+    { symbol: "GC=F",  name: "Gold",         category: "commodity" },
+    { symbol: "ZB=F",  name: "Treasury 30Y", category: "bond"      },
+  ];
+  const tickers = (req.query.tickers || "").split(",").filter(Boolean);
+  const futuresData = await Promise.all(FUTURES.map(async f => {
+    try {
+      const q = await fetchPolygonFuturesQuote(f.symbol);
+      return { ...f, price: q?.price || null, change: q?.change || null,
+               high: q?.high || null, low: q?.low || null,
+               trend: q?.change > 0.1 ? "up" : q?.change < -0.1 ? "down" : "flat",
+               error: q ? null : "no data" };
+    } catch(e) { return { ...f, price: null, change: null, error: e.message }; }
+  }));
+  const premarket = await Promise.all(tickers.map(async ticker => {
+    try {
+      const snap = await fetchPolygonSnapshot(ticker);
+      return { ticker, prePrice: snap?.price || null, prevClose: null, gapPct: null, gapDir: null };
+    } catch { return { ticker, prePrice: null, prevClose: null, gapPct: null }; }
+  }));
+  res.json({ futures: futuresData, premarket, fetchedAt: new Date().toISOString() });
 });
 
-// ─── Trade Log (JSON file persistence) ───────────────────────────────────────
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR  = join(__dirname, "data");
-const DB_FILE   = join(DATA_DIR, "trades.json");
-
-function loadTrades() {
-  try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-    if (!existsSync(DB_FILE))  writeFileSync(DB_FILE, "[]", "utf8");
-    return JSON.parse(readFileSync(DB_FILE, "utf8"));
-  } catch { return []; }
-}
-
-function saveTrades(trades) {
-  try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(DB_FILE, JSON.stringify(trades, null, 2), "utf8");
-  } catch (e) { console.error("Save error:", e.message); }
-}
-
-function calcStats(trades) {
-  const closed = trades.filter(t => t.status === "closed");
-  const wins   = closed.filter(t => t.outcome === "win").length;
-  const losses = closed.filter(t => t.outcome === "loss").length;
-  const totalPnl = closed.reduce((s, t) => s + (t.pnl || 0), 0);
-  return {
-    total:    closed.length,
-    wins,
-    losses,
-    winRate:  closed.length ? +((wins / closed.length) * 100).toFixed(1) : 0,
-    totalPnl: +totalPnl.toFixed(2),
-    avgPnl:   closed.length ? +(totalPnl / closed.length).toFixed(2) : 0,
-  };
-}
-
-app.post("/trades", (req, res) => {
-  const trades = loadTrades();
-  const trade  = {
-    id:        Date.now(),
-    ticker:    req.body.ticker    || "",
-    dir:       req.body.dir       || "",
-    entry:     req.body.entry     || null,
-    stop:      req.body.stop      || null,
-    target1:   req.body.target1   || null,
-    target2:   req.body.target2   || null,
-    shares:    req.body.shares    || null,
-    riskAmt:   req.body.riskAmt   || null,
-    status:    "open",
-    outcome:   null,
-    exitPrice: null,
-    pnl:       null,
-    loggedAt:  new Date().toISOString(),
-    closedAt:  null,
-  };
-  trades.unshift(trade);
-  saveTrades(trades);
-  res.json({ success: true, id: trade.id });
-});
-
-app.patch("/trades/:id", (req, res) => {
-  const trades = loadTrades();
-  const idx    = trades.findIndex(t => t.id === Number(req.params.id));
-  if (idx === -1) return res.status(404).json({ error: "Not found" });
-  const t      = trades[idx];
-  t.status     = "closed";
-  t.outcome    = req.body.outcome   || "loss";
-  t.exitPrice  = req.body.exitPrice || null;
-  t.closedAt   = new Date().toISOString();
-  if (t.exitPrice && t.entry && t.shares) {
-    const diff = t.dir === "long"
-      ? (t.exitPrice - t.entry) * t.shares
-      : (t.entry - t.exitPrice) * t.shares;
-    t.pnl = +diff.toFixed(2);
-  }
-  trades[idx] = t;
-  saveTrades(trades);
-  res.json({ success: true, trade: t });
-});
 
 app.get("/trades", (req, res) => {
   const trades = loadTrades();
