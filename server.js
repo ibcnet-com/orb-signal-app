@@ -1,25 +1,16 @@
-��/**
- * ORBsignal - Yahoo Finance Proxy Server
- * Run with: node server.js
- */
-
 import express from "express";
 import cors from "cors";
-import yahooFinance from "yahoo-finance2";
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
-
 app.use(cors());
 app.use(express.json());
 
-// � � � � � �  Health check � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � 
+// Health check
 app.get("/", (req, res) => res.json({ status: "ok", service: "ORBsignal" }));
 
-// � � � � � �  FOMC / CPI / High-Impact Economic Calendar � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � 
-// Sources: federalreserve.gov, bls.gov ��   updated for 2025-2026
+// Economic calendar
 const HIGH_IMPACT_DATES = {
-  // FOMC Meeting dates (decision days)
   "2025-01-29": { type: "FOMC", label: "FOMC Rate Decision" },
   "2025-03-19": { type: "FOMC", label: "FOMC Rate Decision" },
   "2025-05-07": { type: "FOMC", label: "FOMC Rate Decision" },
@@ -36,7 +27,6 @@ const HIGH_IMPACT_DATES = {
   "2026-09-16": { type: "FOMC", label: "FOMC Rate Decision" },
   "2026-11-04": { type: "FOMC", label: "FOMC Rate Decision" },
   "2026-12-16": { type: "FOMC", label: "FOMC Rate Decision" },
-  // CPI release dates 2025
   "2025-01-15": { type: "CPI", label: "CPI Inflation Report" },
   "2025-02-12": { type: "CPI", label: "CPI Inflation Report" },
   "2025-03-12": { type: "CPI", label: "CPI Inflation Report" },
@@ -49,14 +39,12 @@ const HIGH_IMPACT_DATES = {
   "2025-10-15": { type: "CPI", label: "CPI Inflation Report" },
   "2025-11-13": { type: "CPI", label: "CPI Inflation Report" },
   "2025-12-10": { type: "CPI", label: "CPI Inflation Report" },
-  // CPI release dates 2026
   "2026-01-14": { type: "CPI", label: "CPI Inflation Report" },
   "2026-02-11": { type: "CPI", label: "CPI Inflation Report" },
   "2026-03-11": { type: "CPI", label: "CPI Inflation Report" },
   "2026-04-09": { type: "CPI", label: "CPI Inflation Report" },
   "2026-05-13": { type: "CPI", label: "CPI Inflation Report" },
   "2026-06-10": { type: "CPI", label: "CPI Inflation Report" },
-  // NFP (Jobs Report) - first Friday of each month
   "2025-01-10": { type: "NFP", label: "Jobs Report (NFP)" },
   "2025-02-07": { type: "NFP", label: "Jobs Report (NFP)" },
   "2025-03-07": { type: "NFP", label: "Jobs Report (NFP)" },
@@ -78,31 +66,27 @@ const HIGH_IMPACT_DATES = {
 };
 
 function checkEconomicCalendar() {
-  const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const today = new Date().toISOString().slice(0, 10);
   const event = HIGH_IMPACT_DATES[today];
   return event ? { hasEvent: true, ...event } : { hasEvent: false };
 }
 
-// � � � � � �  Yahoo Finance news check � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � 
 async function fetchTickerNews(ticker) {
   try {
-    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${ticker}&newsCount=5&enableFuzzyQuery=false`;
-    const res  = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-    });
+    const url = "https://query1.finance.yahoo.com/v1/finance/search?q=" + ticker + "&newsCount=5&enableFuzzyQuery=false";
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
     if (!res.ok) return { hasNews: false, headlines: [] };
     const json = await res.json();
     const news = json?.news || [];
-    // Flag if any headline contains high-impact keywords
-    const keywords = ["earnings", "fda", "sec", "lawsuit", "recall", "bankruptcy", "merger", "acquisition", "indictment", "investigation", "beat", "miss", "guidance", "downgrade", "upgrade"];
-    const flagged  = news.filter(n => keywords.some(k => n.title?.toLowerCase().includes(k)));
-    return {
-      hasNews:   flagged.length > 0,
-      headlines: flagged.slice(0, 2).map(n => n.title),
-      allCount:  news.length,
-    };
+    const keywords = ["earnings","fda","sec","lawsuit","recall","bankruptcy","merger","acquisition","indictment","investigation","beat","miss","guidance","downgrade","upgrade"];
+    const flagged = news.filter(n => keywords.some(k => n.title?.toLowerCase().includes(k)));
+    return { hasNews: flagged.length > 0, headlines: flagged.slice(0, 2).map(n => n.title), allCount: news.length };
   } catch {
-    return// Polygon.io data fetcher
+    return { hasNews: false, headlines: [] };
+  }
+}
+
+// Polygon.io data fetcher
 const POLYGON_KEY = process.env.POLYGON_API_KEY || "LnOseGB36TNkPlYRAMclC4ulkZmIzirI";
 
 async function polygonFetch(url) {
@@ -113,87 +97,131 @@ async function polygonFetch(url) {
 
 function etDateStr() {
   const now = new Date();
-  const et  = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   return et.toISOString().slice(0, 10);
+}
+
+async function fetchCandles(ticker) {
+  const date = etDateStr();
+  const url = "https://api.polygon.io/v2/aggs/ticker/" + ticker + "/range/1/minute/" + date + "/" + date + "?adjusted=true&sort=asc&limit=500&apiKey=" + POLYGON_KEY;
+  const json = await polygonFetch(url);
+  if (json.status === "ERROR") throw new Error(json.error || "Polygon error for " + ticker);
+  if (!json.results || json.results.length === 0) throw new Error("No candle data for " + ticker + " on " + date);
+  return json.results.map(bar => ({
+    time: new Date(bar.t), open: bar.o, high: bar.h, low: bar.l, close: bar.c, volume: bar.v || 0,
+  }));
+}
+
+async function fetchPolygonSnapshot(ticker) {
+  try {
+    const url = "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/" + ticker + "?apiKey=" + POLYGON_KEY;
+    const json = await polygonFetch(url);
+    const snap = json.ticker;
+    if (!snap) return null;
+    return { price: snap.day?.c || snap.lastTrade?.p || null, change: snap.todaysChangePerc ? +snap.todaysChangePerc.toFixed(2) : null, volume: snap.day?.v || null };
+  } catch { return null; }
+}
+
+async function fetchPolygonFuturesQuote(symbol) {
+  try {
+    const map = { "ES=F": "I:SPX", "NQ=F": "I:NDX", "YM=F": "I:DJI", "RTY=F": "I:RUT", "CL=F": "CL", "GC=F": "GLD", "ZB=F": "TLT" };
+    const pt = map[symbol];
+    if (!pt) return null;
+    let url, price = null, change = null, high = null, low = null;
+    if (pt.startsWith("I:")) {
+      url = "https://api.polygon.io/v3/snapshot?ticker.any_of=" + pt + "&apiKey=" + POLYGON_KEY;
+      const json = await polygonFetch(url);
+      const r = json.results?.[0];
+      price = r?.session?.close || r?.value || null;
+      change = r?.session?.change_percent != null ? +r.session.change_percent.toFixed(2) : null;
+      high = r?.session?.high || null;
+      low = r?.session?.low || null;
+    } else {
+      url = "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/" + pt + "?apiKey=" + POLYGON_KEY;
+      const json = await polygonFetch(url);
+      const snap = json.ticker;
+      price = snap?.day?.c || snap?.lastTrade?.p || null;
+      change = snap?.todaysChangePerc != null ? +snap.todaysChangePerc.toFixed(2) : null;
+      high = snap?.day?.h || null;
+      low = snap?.day?.l || null;
+    }
+    return { price, change, high, low };
+  } catch { return null; }
 }
 
 function detectORB(candles, orbMinutes = 15, volFilterPct = 150) {
   if (!candles.length) return null;
   const marketOpen = new Date(candles[0].time);
   marketOpen.setSeconds(0, 0);
-  const orbEnd     = new Date(marketOpen.getTime() + orbMinutes * 60 * 1000);
+  const orbEnd = new Date(marketOpen.getTime() + orbMinutes * 60 * 1000);
   const orbCandles = candles.filter(c => c.time <= orbEnd);
-  const postOrb    = candles.filter(c => c.time >  orbEnd);
+  const postOrb = candles.filter(c => c.time > orbEnd);
   if (!orbCandles.length || !postOrb.length) return null;
-  const orbHigh    = Math.max(...orbCandles.map(c => c.high));
-  const orbLow     = Math.min(...orbCandles.map(c => c.low));
-  const avgOrbVol  = orbCandles.reduce((s, c) => s + c.volume, 0) / orbCandles.length;
-
-  // � � � �  Avoid rule: tiny ORB range < 0.2% � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � 
+  const orbHigh = Math.max(...orbCandles.map(c => c.high));
+  const orbLow = Math.min(...orbCandles.map(c => c.low));
+  const avgOrbVol = orbCandles.reduce((s, c) => s + c.volume, 0) / orbCandles.length;
   const orbRangePct = ((orbHigh - orbLow) / orbLow) * 100;
-  const tinyRange   = orbRangePct < 0.2;
-
+  const tinyRange = orbRangePct < 0.2;
   for (const candle of postOrb) {
     const volPct = Math.round((candle.volume / avgOrbVol) * 100);
-    const conf   = volPct >= 200 ? "high" : volPct >= 120 ? "med" : "low";
-    const time   = candle.time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    const conf = volPct >= 200 ? "high" : volPct >= 120 ? "med" : "low";
+    const time = candle.time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
     if (candle.close > orbHigh && volPct >= volFilterPct)
-      return { dir: "long",  orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +candle.close.toFixed(2), vol: `+${volPct}% avg`, time, conf, reason: `Closed above ORB high $${orbHigh.toFixed(2)} with ${volPct}% avg vol` };
-    if (candle.close < orbLow  && volPct >= volFilterPct)
-      return { dir: "short", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +candle.close.toFixed(2), vol: `+${volPct}% avg`, time, conf, reason: `Closed below ORB low $${orbLow.toFixed(2)} with ${volPct}% avg vol` };
+      return { dir: "long", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +candle.close.toFixed(2), vol: "+" + volPct + "% avg", time, conf, reason: "Closed above ORB high $" + orbHigh.toFixed(2) + " with " + volPct + "% avg vol" };
+    if (candle.close < orbLow && volPct >= volFilterPct)
+      return { dir: "short", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +candle.close.toFixed(2), vol: "+" + volPct + "% avg", time, conf, reason: "Closed below ORB low $" + orbLow.toFixed(2) + " with " + volPct + "% avg vol" };
   }
   const latest = candles[candles.length - 1];
-  return { dir: "none", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +latest.close.toFixed(2), vol: "��  ", time: latest.time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }), conf: "low", reason: `No breakout yet. Range: $${orbLow.toFixed(2)} ��   $${orbHigh.toFixed(2)}` };
+  return { dir: "none", orbHigh: +orbHigh.toFixed(2), orbLow: +orbLow.toFixed(2), orbRangePct: +orbRangePct.toFixed(3), tinyRange, price: +latest.close.toFixed(2), vol: "--", time: latest.time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }), conf: "low", reason: "No breakout yet. Range: $" + orbLow.toFixed(2) + " -- $" + orbHigh.toFixed(2) };
 }
 
-// � � � �  SPY trend helper � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � 
-async function getSpyTrend() {
-  try {
-    const candles = await fetchCandles("SPY");
-    if (candles.length < 2) return { trend: "unknown", spyChange: null };
-    const open  = candles[0].open;
-    const last  = candles[candles.length - 1].close;
-    const chg   = ((last - open) / open) * 100;
-    const trend = chg > 0.3 ? "up" : chg < -0.3 ? "down" : "sideways";
-    return { trend, spyChange: +chg.toFixed(2) };
-  } catch {
-    return { trend: "unknown", spyChange: null };
-  }
+// Trade storage
+import { readFileSync, writeFileSync, existsSync } from "fs";
+const TRADES_FILE = "./data/trades.json";
+function loadTrades() {
+  try { return existsSync(TRADES_FILE) ? JSON.parse(readFileSync(TRADES_FILE, "utf8")) : []; } catch { return []; }
+}
+function saveTrades(trades) {
+  try { writeFileSync(TRADES_FILE, JSON.stringify(trades, null, 2)); } catch {}
 }
 
-// � � � � � �  Routes � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � 
+// Routes
 app.get("/scan", async (req, res) => {
-  const tickers   = (req.query.tickers || "SPY,QQQ").split(",").map(t => t.trim().toUpperCase());
+  const tickers = (req.query.tickers || "SPY,QQQ,AAPL,TSLA").split(",");
   const orbWindow = parseInt(req.query.orbWindow) || 15;
   const volFilter = parseInt(req.query.volFilter) || 150;
-
-  const [results, spyTrend, economicEvent] = await Promise.all([
-    Promise.allSettled(
-      tickers.map(async ticker => {
-        const [candles, news] = await Promise.all([
-          fetchCandles(ticker),
-          fetchTickerNews(ticker),
-        ]);
-        return { ticker, news, ...detectORB(candles, orbWindow, volFilter) };
-      })
-    ),
-    getSpyTrend(),
-    Promise.resolve(checkEconomicCalendar()),
-  ]);
-
-  res.json({
-    signals:       results.filter(r => r.status === "fulfilled" && r.value.dir !== "none").map((r, i) => ({ id: Date.now() + i, ...r.value })),
-    noBreakout:    results.filter(r => r.status === "fulfilled" && r.value.dir === "none").map((r, i) => ({ id: Date.now() + 1000 + i, ...r.value })),
-    errors:        results.filter(r => r.status === "rejected").map(r => r.reason?.message),
-    spyTrend,
-    economicEvent,
-    scannedAt:     new Date().toISOString(),
-  });
+  const errors = [];
+  const signals = [];
+  const noBreakout = [];
+  let spyTrend = { trend: "unknown", spyChange: null };
+  const economicEvent = checkEconomicCalendar();
+  const results = await Promise.allSettled(tickers.map(async ticker => {
+    try {
+      const candles = await fetchCandles(ticker);
+      const news = await fetchTickerNews(ticker);
+      const orb = detectORB(candles, orbWindow, volFilter);
+      if (!orb) return;
+      if (ticker === "SPY" || ticker === "QQQ") {
+        const first = candles[0]?.close, last = candles[candles.length - 1]?.close;
+        if (first && last) {
+          const chg = +((last - first) / first * 100).toFixed(2);
+          spyTrend = { trend: chg > 0.1 ? "up" : chg < -0.1 ? "down" : "sideways", spyChange: chg };
+        }
+      }
+      const id = ticker + "-" + Date.now();
+      const signal = { id, ticker, ...orb, news };
+      if (orb.dir !== "none") signals.push(signal);
+      else noBreakout.push(signal);
+    } catch(e) {
+      errors.push(e.message || "fetch failed");
+    }
+  }));
+  res.json({ signals, noBreakout, errors, spyTrend, economicEvent, scannedAt: new Date().toISOString() });
 });
 
 app.get("/quote", async (req, res) => {
   const tickers = (req.query.tickers || "SPY,QQQ,VIX").split(",");
-  const quotes  = {};
+  const quotes = {};
   await Promise.all(tickers.map(async t => {
     try {
       const snap = await fetchPolygonSnapshot(t);
@@ -203,25 +231,21 @@ app.get("/quote", async (req, res) => {
   res.json({ quotes, fetchedAt: new Date().toISOString() });
 });
 
-
 app.get("/futures", async (req, res) => {
   const FUTURES = [
-    { symbol: "ES=F",  name: "S&P 500",      category: "index"     },
-    { symbol: "NQ=F",  name: "Nasdaq 100",   category: "index"     },
-    { symbol: "YM=F",  name: "Dow Jones",    category: "index"     },
-    { symbol: "RTY=F", name: "Russell 2000", category: "index"     },
-    { symbol: "CL=F",  name: "Crude Oil",    category: "commodity" },
-    { symbol: "GC=F",  name: "Gold",         category: "commodity" },
-    { symbol: "ZB=F",  name: "Treasury 30Y", category: "bond"      },
+    { symbol: "ES=F", name: "S&P 500", category: "index" },
+    { symbol: "NQ=F", name: "Nasdaq 100", category: "index" },
+    { symbol: "YM=F", name: "Dow Jones", category: "index" },
+    { symbol: "RTY=F", name: "Russell 2000", category: "index" },
+    { symbol: "CL=F", name: "Crude Oil", category: "commodity" },
+    { symbol: "GC=F", name: "Gold", category: "commodity" },
+    { symbol: "ZB=F", name: "Treasury 30Y", category: "bond" },
   ];
   const tickers = (req.query.tickers || "").split(",").filter(Boolean);
   const futuresData = await Promise.all(FUTURES.map(async f => {
     try {
       const q = await fetchPolygonFuturesQuote(f.symbol);
-      return { ...f, price: q?.price || null, change: q?.change || null,
-               high: q?.high || null, low: q?.low || null,
-               trend: q?.change > 0.1 ? "up" : q?.change < -0.1 ? "down" : "flat",
-               error: q ? null : "no data" };
+      return { ...f, price: q?.price || null, change: q?.change || null, high: q?.high || null, low: q?.low || null, trend: q?.change > 0.1 ? "up" : q?.change < -0.1 ? "down" : "flat", error: q ? null : "no data" };
     } catch(e) { return { ...f, price: null, change: null, error: e.message }; }
   }));
   const premarket = await Promise.all(tickers.map(async ticker => {
@@ -233,134 +257,99 @@ app.get("/futures", async (req, res) => {
   res.json({ futures: futuresData, premarket, fetchedAt: new Date().toISOString() });
 });
 
+app.post("/trades", (req, res) => {
+  const trades = loadTrades();
+  const trade = { id: Date.now(), ...req.body, outcome: "open", logged_at: new Date().toISOString() };
+  trades.unshift(trade);
+  saveTrades(trades);
+  res.json({ ok: true, trade });
+});
+
+app.patch("/trades/:id", (req, res) => {
+  const trades = loadTrades();
+  const idx = trades.findIndex(t => t.id == req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Not found" });
+  const t = trades[idx];
+  const exit = parseFloat(req.body.exit_price);
+  const exitType = req.body.exit_type || (exit > t.entry_price === (t.dir === "long") ? "win" : "loss");
+  const pnlRaw = t.dir === "long" ? (exit - t.entry_price) * (t.shares || 1) : (t.entry_price - exit) * (t.shares || 1);
+  const pnl = +pnlRaw.toFixed(2);
+  const pnlPct = +(((exit - t.entry_price) / t.entry_price) * 100 * (t.dir === "long" ? 1 : -1)).toFixed(2);
+  trades[idx] = { ...t, exit_price: exit, exit_type: exitType, outcome: exitType === "cancelled" ? "cancelled" : pnl > 0 ? "win" : "loss", pnl_dollar: pnl, pnl_pct: pnlPct, closed_at: new Date().toISOString() };
+  saveTrades(trades);
+  res.json({ ok: true });
+});
 
 app.get("/trades", (req, res) => {
   const trades = loadTrades();
-  res.json({ trades, stats: calcStats(trades) });
+  const closed = trades.filter(t => t.outcome !== "open");
+  const totalPnl = +closed.reduce((s, t) => s + (t.pnl_dollar || 0), 0).toFixed(2);
+  const wins = closed.filter(t => t.outcome === "win").length;
+  const losses = closed.filter(t => t.outcome === "loss").length;
+  const winRate = closed.length > 0 ? Math.round((wins / closed.length) * 100) : 0;
+  res.json({ trades, stats: { totalPnl, wins, losses, winRate, total: trades.length } });
 });
 
 app.get("/trades/export", (req, res) => {
   const trades = loadTrades();
-  const header = "id,ticker,dir,entry,stop,target1,shares,status,outcome,exitPrice,pnl,loggedAt,closedAt";
-  const rows   = trades.map(t =>
-    [t.id,t.ticker,t.dir,t.entry,t.stop,t.target1,t.shares,t.status,t.outcome,t.exitPrice,t.pnl,t.loggedAt,t.closedAt].join(",")
-  );
+  const header = "id,ticker,dir,entry_price,exit_price,pnl_dollar,pnl_pct,outcome,logged_at,closed_at";
+  const rows = trades.map(t => [t.id,t.ticker,t.dir,t.entry_price,t.exit_price||"",t.pnl_dollar||"",t.pnl_pct||"",t.outcome,t.logged_at,t.closed_at||""].join(","));
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", "attachment; filename=trades.csv");
-  res.send([header, ...rows].join("\r\n"));
+  res.send([header, ...rows].join("\n"));
 });
-
-// � � � � � �  Yesterday's ORB Report � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � � 
-async function fetchYesterdayCandles(ticker) {
-  // range=5d gives us multiple days of 1m data ��   we extract yesterday's session
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=5d&includePrePost=false`;
-  const res  = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
-  if (!res.ok) throw new Error(`Yahoo ${res.status} for ${ticker}`);
-  const json   = await res.json();
-  const result = json?.chart?.result?.[0];
-  if (!result)  throw new Error(`No data for ${ticker}`);
-  const { open, high, low, close, volume } = result.indicators.quote[0];
-  const allCandles = result.timestamp.map((ts, i) => ({
-    time: new Date(ts * 1000), open: open[i], high: high[i],
-    low: low[i], close: close[i], volume: volume[i],
-  })).filter(c => c.open !== null && c.close !== null);
-
-  // Group by date, pick the most recent completed session (not today)
-  const today = new Date().toDateString();
-  const byDate = {};
-  for (const c of allCandles) {
-    const d = c.time.toDateString();
-    if (d === today) continue; // skip today
-    if (!byDate[d]) byDate[d] = [];
-    byDate[d].push(c);
-  }
-  const dates = Object.keys(byDate).sort((a,b) => new Date(b) - new Date(a));
-  return { candles: byDate[dates[0]] || [], date: dates[0] || null };
-}
 
 app.get("/yesterday", async (req, res) => {
-  const tickers   = (req.query.tickers || "SPY").split(",").map(t => t.trim().toUpperCase());
+  const tickers = (req.query.tickers || "SPY,QQQ,AAPL,TSLA").split(",");
   const orbWindow = parseInt(req.query.orbWindow) || 15;
-  const maxRisk   = parseFloat(req.query.maxRisk) || 1000;
-
+  const maxRisk = parseInt(req.query.maxRisk) || 1000;
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  et.setDate(et.getDate() - (et.getDay() === 1 ? 3 : et.getDay() === 0 ? 2 : 1));
+  const yesterday = et.toISOString().slice(0, 10);
   const results = await Promise.allSettled(tickers.map(async ticker => {
-    const { candles, date } = await fetchYesterdayCandles(ticker);
-    if (!candles.length) return { ticker, dir: "none", date, error: "No data" };
-
-    const orb = detectORB(candles, orbWindow, 100); // volFilter=100 for yesterday (no filter)
-    if (!orb || orb.dir === "none") return { ticker, dir: "none", date, orbHigh: orb?.orbHigh, orbLow: orb?.orbLow, price: orb?.price };
-
-    // Entry = breakout candle close
+    const url = "https://api.polygon.io/v2/aggs/ticker/" + ticker + "/range/1/minute/" + yesterday + "/" + yesterday + "?adjusted=true&sort=asc&limit=500&apiKey=" + POLYGON_KEY;
+    const json = await polygonFetch(url);
+    if (!json.results?.length) return { ticker, dir: "none", date: yesterday };
+    const candles = json.results.map(bar => ({ time: new Date(bar.t), open: bar.o, high: bar.h, low: bar.l, close: bar.c, volume: bar.v || 0 }));
+    const orb = detectORB(candles, orbWindow, 100);
+    if (!orb || orb.dir === "none") return { ticker, dir: "none", orbHigh: orb?.orbHigh, orbLow: orb?.orbLow, date: yesterday };
     const entry = orb.price;
     const orbRange = orb.orbHigh - orb.orbLow;
-    const stop  = orb.dir === "long"
-      ? +(orb.orbHigh - orbRange * 0.1).toFixed(2)
-      : +(orb.orbLow  + orbRange * 0.1).toFixed(2);
+    const stop = orb.dir === "long" ? +(orb.orbHigh - orbRange * 0.1).toFixed(2) : +(orb.orbLow + orbRange * 0.1).toFixed(2);
     const riskPerShare = Math.abs(entry - stop);
     const shares = riskPerShare > 0 ? Math.floor(maxRisk / riskPerShare) : 0;
-    const t1 = orb.dir === "long"
-      ? +(entry + riskPerShare * 2).toFixed(2)
-      : +(entry - riskPerShare * 2).toFixed(2);
-    const eod = candles[candles.length - 1].close;
-
-    // Find the breakout candle index
-    const breakoutTime = candles.find(c =>
-      orb.dir === "long" ? c.close > orb.orbHigh : c.close < orb.orbLow
-    )?.time;
-    const postBreakout = breakoutTime
-      ? candles.filter(c => c.time >= breakoutTime)
-      : [];
-
-    // Check if T1 was hit
+    const t1 = orb.dir === "long" ? +(entry + riskPerShare * 2).toFixed(2) : +(entry - riskPerShare * 2).toFixed(2);
+    const postOrb = candles.filter(c => c.time > new Date(candles[0].time.getTime() + orbWindow * 60000));
+    let exitPrice = postOrb[postOrb.length - 1]?.close || entry;
     let t1Hit = false;
-    let exitPrice = +eod.toFixed(2);
-    for (const c of postBreakout) {
-      if (orb.dir === "long"  && c.high  >= t1) { t1Hit = true; exitPrice = t1; break; }
-      if (orb.dir === "short" && c.low   <= t1) { t1Hit = true; exitPrice = t1; break; }
+    for (const c of postOrb) {
+      if (orb.dir === "long" && c.high >= t1) { exitPrice = t1; t1Hit = true; break; }
+      if (orb.dir === "short" && c.low <= t1) { exitPrice = t1; t1Hit = true; break; }
+      if (orb.dir === "long" && c.low <= stop) { exitPrice = stop; break; }
+      if (orb.dir === "short" && c.high >= stop) { exitPrice = stop; break; }
     }
-
-    const pnl = orb.dir === "long"
-      ? +((exitPrice - entry) * shares).toFixed(0)
-      : +((entry - exitPrice) * shares).toFixed(0);
-    const pnlPct = entry > 0 ? +(((exitPrice - entry) / entry) * 100 * (orb.dir === "short" ? -1 : 1)).toFixed(2) : 0;
+    const eod = postOrb[postOrb.length - 1]?.close || entry;
+    const pnlPerShare = orb.dir === "long" ? exitPrice - entry : entry - exitPrice;
+    const pnl = +(pnlPerShare * shares).toFixed(2);
+    const pnlPct = +(pnlPerShare / entry * 100 * (orb.dir === "long" ? 1 : -1)).toFixed(2);
     const outcome = pnl > 0 ? "win" : pnl < 0 ? "loss" : "flat";
-
-    return {
-      ticker, date, dir: orb.dir,
-      orbHigh: orb.orbHigh, orbLow: orb.orbLow, orbRangePct: orb.orbRangePct,
-      entry: +entry.toFixed(2), stop: +stop.toFixed(2), t1: +t1.toFixed(2),
-      exitPrice, exitType: t1Hit ? "T1 hit" : "EOD close",
-      eod: +eod.toFixed(2), shares, pnl, pnlPct, outcome,
-      conf: orb.conf, time: orb.time,
-    };
+    return { ticker, date: yesterday, dir: orb.dir, entry: +entry.toFixed(2), stop: +stop.toFixed(2), t1: +t1.toFixed(2), exitPrice, exitType: t1Hit ? "T1 hit" : "EOD close", eod: +eod.toFixed(2), shares, pnl, pnlPct, outcome, conf: orb.conf, time: orb.time };
   }));
-
   const date = results.find(r => r.status === "fulfilled" && r.value.date)?.value?.date || null;
-  res.json({
-    date,
-    results: results.map(r => r.status === "fulfilled" ? r.value : { ticker: "?", dir: "none", error: r.reason?.message }),
-  });
+  res.json({ date, results: results.map(r => r.status === "fulfilled" ? r.value : { ticker: "?", dir: "none", error: r.reason?.message }) });
 });
 
-// AI Postmortem proxy (avoids CORS on direct browser->Anthropic calls)
 app.post("/ai-postmortem", async (req, res) => {
   try {
     const { prompt } = req.body;
     if (!prompt) return res.status(400).json({ error: "No prompt" });
-    const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-    if (!ANTHROPIC_KEY) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
+    const KEY = process.env.ANTHROPIC_API_KEY;
+    if (!KEY) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      headers: { "Content-Type": "application/json", "x-api-key": KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
     });
     const data = await r.json();
     const text = data.content?.find(b => b.type === "text")?.text || "";
@@ -370,10 +359,6 @@ app.post("/ai-postmortem", async (req, res) => {
   }
 });
 
-
 app.listen(PORT, () => {
-  console.log(`\n�S&  ORBsignal server running on port ${PORT}`);
-  console.log(`   /scan    �    ORB breakout detection`);
-  console.log(`   /quote   �    Live prices`);
-  console.log(`   /futures �    Futures + pre-market data\n`);
+  console.log("ORBsignal server running on port " + PORT);
 });
