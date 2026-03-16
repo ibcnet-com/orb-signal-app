@@ -377,9 +377,3 @@ app.listen(PORT, () => {
   console.log(`   /quote   â†’ Live prices`);
   console.log(`   /futures â†’ Futures + pre-market data\n`);
 });
-
-
-
-
-
-
