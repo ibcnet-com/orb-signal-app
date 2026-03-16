@@ -986,6 +986,13 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
   const [postmortem, setPostmortem] = useState(null);
   const [pmLoading, setPmLoading] = useState(false);
 
+  // Auto-analyze when yesterdayReport loads
+  React.useEffect(() => {
+    if (yesterdayReport?.results?.length && !postmortem && !pmLoading) {
+      autoAnalyze(yesterdayReport);
+    }
+  }, [yesterdayReport]);
+
   const closed = tradeLog.filter(t => t.outcome !== "open" && t.pnl_dollar != null);
   let running = 0;
   const pnlSeries = closed.map(t => { running += t.pnl_dollar; return { date: new Date(t.logged_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }), pnl: running }; });
@@ -1457,8 +1464,6 @@ export default function ORBApp() {
       const r = await fetch(`${API}/yesterday?tickers=${tickers}&orbWindow=${orbWindow}&maxRisk=${maxRisk}`);
       const data = await r.json();
       setYesterdayReport(data);
-      // auto-run postmortem
-      if (data?.results?.length) autoAnalyze(data);
     } catch(e) {
       setYesterdayReport({ error: e.message });
     }
