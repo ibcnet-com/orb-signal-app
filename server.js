@@ -114,37 +114,29 @@ async function fetchCandles(ticker) {
 
 async function fetchPolygonSnapshot(ticker) {
   try {
-    const url = "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/" + ticker + "?apiKey=" + POLYGON_KEY;
+    // Use prev close (free tier) - returns previous trading day data
+    const url = "https://api.polygon.io/v2/aggs/ticker/" + ticker + "/prev?adjusted=true&apiKey=" + POLYGON_KEY;
     const json = await polygonFetch(url);
-    const snap = json.ticker;
-    if (!snap) return null;
-    return { price: snap.day?.c || snap.lastTrade?.p || null, change: snap.todaysChangePerc ? +snap.todaysChangePerc.toFixed(2) : null, volume: snap.day?.v || null };
+    const result = json.results?.[0];
+    if (!result) return null;
+    return { price: result.c || null, change: result.o > 0 ? +((result.c - result.o) / result.o * 100).toFixed(2) : null, volume: result.v || null };
   } catch { return null; }
 }
 
 async function fetchPolygonFuturesQuote(symbol) {
   try {
-    const map = { "ES=F": "I:SPX", "NQ=F": "I:NDX", "YM=F": "I:DJI", "RTY=F": "I:RUT", "CL=F": "CL", "GC=F": "GLD", "ZB=F": "TLT" };
+    // Map futures to ETF/stock proxies available on free tier
+    const map = { "ES=F": "SPY", "NQ=F": "QQQ", "YM=F": "DIA", "RTY=F": "IWM", "CL=F": "USO", "GC=F": "GLD", "ZB=F": "TLT" };
     const pt = map[symbol];
     if (!pt) return null;
-    let url, price = null, change = null, high = null, low = null;
-    if (pt.startsWith("I:")) {
-      url = "https://api.polygon.io/v3/snapshot?ticker.any_of=" + pt + "&apiKey=" + POLYGON_KEY;
-      const json = await polygonFetch(url);
-      const r = json.results?.[0];
-      price = r?.session?.close || r?.value || null;
-      change = r?.session?.change_percent != null ? +r.session.change_percent.toFixed(2) : null;
-      high = r?.session?.high || null;
-      low = r?.session?.low || null;
-    } else {
-      url = "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/" + pt + "?apiKey=" + POLYGON_KEY;
-      const json = await polygonFetch(url);
-      const snap = json.ticker;
-      price = snap?.day?.c || snap?.lastTrade?.p || null;
-      change = snap?.todaysChangePerc != null ? +snap.todaysChangePerc.toFixed(2) : null;
-      high = snap?.day?.h || null;
-      low = snap?.day?.l || null;
-    }
+    const url = "https://api.polygon.io/v2/aggs/ticker/" + pt + "/prev?adjusted=true&apiKey=" + POLYGON_KEY;
+    const json = await polygonFetch(url);
+    const result = json.results?.[0];
+    if (!result) return null;
+    const price = result.c || null;
+    const change = result.o > 0 ? +((result.c - result.o) / result.o * 100).toFixed(2) : null;
+    const high = result.h || null;
+    const low = result.l || null;
     return { price, change, high, low };
   } catch { return null; }
 }
