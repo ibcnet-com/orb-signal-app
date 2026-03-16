@@ -987,7 +987,7 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
   const [pmLoading, setPmLoading] = useState(false);
 
   // Auto-analyze when yesterdayReport loads
-  React.useEffect(() => {
+  useEffect(() => {
     if (yesterdayReport?.results?.length && !postmortem && !pmLoading) {
       autoAnalyze(yesterdayReport);
     }
