@@ -102,41 +102,65 @@ function etDateStr() {
 }
 
 async function fetchCandles(ticker) {
-  const date = etDateStr();
-  const url = "https://api.polygon.io/v2/aggs/ticker/" + ticker + "/range/1/minute/" + date + "/" + date + "?adjusted=true&sort=asc&limit=500&apiKey=" + POLYGON_KEY;
-  const json = await polygonFetch(url);
-  if (json.status === "ERROR") throw new Error(json.error || "Polygon error for " + ticker);
-  if (!json.results || json.results.length === 0) throw new Error("No candle data for " + ticker + " on " + date);
-  return json.results.map(bar => ({
-    time: new Date(bar.t), open: bar.o, high: bar.h, low: bar.l, close: bar.c, volume: bar.v || 0,
-  }));
+  const url = "https://query2.finance.yahoo.com/v8/finance/chart/" + ticker + "?interval=1m&range=1d&includePrePost=false";
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "application/json",
+      "Accept-Language": "en-US,en;q=0.9",
+    }
+  });
+  if (!res.ok) throw new Error("Yahoo " + res.status + " for " + ticker);
+  const json = await res.json();
+  const result = json?.chart?.result?.[0];
+  if (!result) throw new Error("No data for " + ticker);
+  const { open, high, low, close, volume } = result.indicators.quote[0];
+  return result.timestamp.map((ts, i) => ({
+    time: new Date(ts * 1000), open: open[i], high: high[i], low: low[i], close: close[i], volume: volume[i] || 0,
+  })).filter(c => c.open !== null && c.close !== null);
 }
 
 async function fetchPolygonSnapshot(ticker) {
   try {
-    // Use prev close (free tier) - returns previous trading day data
-    const url = "https://api.polygon.io/v2/aggs/ticker/" + ticker + "/prev?adjusted=true&apiKey=" + POLYGON_KEY;
-    const json = await polygonFetch(url);
-    const result = json.results?.[0];
+    const url = "https://query2.finance.yahoo.com/v8/finance/chart/" + ticker + "?interval=1d&range=2d&includePrePost=true";
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+      }
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
     if (!result) return null;
-    return { price: result.c || null, change: result.o > 0 ? +((result.c - result.o) / result.o * 100).toFixed(2) : null, volume: result.v || null };
+    const meta = result.meta;
+    const price = meta.regularMarketPrice || meta.previousClose || null;
+    const prevClose = meta.previousClose || null;
+    const change = price && prevClose ? +((price - prevClose) / prevClose * 100).toFixed(2) : null;
+    return { price, change, volume: meta.regularMarketVolume || null };
   } catch { return null; }
 }
 
 async function fetchPolygonFuturesQuote(symbol) {
   try {
-    // Map futures to ETF/stock proxies available on free tier
-    const map = { "ES=F": "SPY", "NQ=F": "QQQ", "YM=F": "DIA", "RTY=F": "IWM", "CL=F": "USO", "GC=F": "GLD", "ZB=F": "TLT" };
-    const pt = map[symbol];
-    if (!pt) return null;
-    const url = "https://api.polygon.io/v2/aggs/ticker/" + pt + "/prev?adjusted=true&apiKey=" + POLYGON_KEY;
-    const json = await polygonFetch(url);
-    const result = json.results?.[0];
+    const url = "https://query2.finance.yahoo.com/v8/finance/chart/" + symbol + "?interval=1d&range=2d&includePrePost=true";
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+      }
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
     if (!result) return null;
-    const price = result.c || null;
-    const change = result.o > 0 ? +((result.c - result.o) / result.o * 100).toFixed(2) : null;
-    const high = result.h || null;
-    const low = result.l || null;
+    const meta = result.meta;
+    const price = meta.regularMarketPrice || meta.previousClose || null;
+    const prevClose = meta.previousClose || null;
+    const change = price && prevClose ? +((price - prevClose) / prevClose * 100).toFixed(2) : null;
+    const quotes = result.indicators?.quote?.[0];
+    const high = quotes?.high?.[quotes.high.length - 1] || null;
+    const low = quotes?.low?.[quotes.low.length - 1] || null;
     return { price, change, high, low };
   } catch { return null; }
 }
