@@ -342,6 +342,35 @@ app.get("/yesterday", async (req, res) => {
   });
 });
 
+// AI Postmortem proxy (avoids CORS on direct browser->Anthropic calls)
+app.post("/ai-postmortem", async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt) return res.status(400).json({ error: "No prompt" });
+    const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_KEY) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    const data = await r.json();
+    const text = data.content?.find(b => b.type === "text")?.text || "";
+    res.json({ text });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`\nâœ… ORBsignal server running on port ${PORT}`);
   console.log(`   /scan    â†’ ORB breakout detection`);

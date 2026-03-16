@@ -1022,9 +1022,9 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
     try {
       const summary = report.results.filter(r => r.dir !== "none").map(r => r.ticker + ": " + r.dir.toUpperCase() + " | Entry $" + r.entry + " | Stop $" + r.stop + " | Exit $" + r.exitPrice + " (" + r.exitType + ") | P&L $" + r.pnl + " (" + r.pnlPct + "%) | Outcome: " + r.outcome).join("\n");
       const prompt = "Expert ORB trader reviewing " + report.date + " trades:\n" + summary + "\n\nFor each: diagnose outcome (range, timing, volume, direction). Give one concrete rule.\n\nJSON only:\n{\"trades\":[{\"ticker\":\"X\",\"outcome\":\"win\",\"diagnosis\":\"..\",\"rule\":\"..\"}],\"session\":{\"summary\":\"..\",\"adjustments\":[\"Rule 1\",\"Rule 2\"]}}";
-      const resp = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }) });
+      const resp = await fetch(API + "/ai-postmortem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
       const data = await resp.json();
-      const raw  = data.content?.find(b => b.type === "text")?.text || "";
+      const raw  = data.text || "";
       setPostmortem(JSON.parse(raw.replace(/```json|```/g, "").trim()));
     } catch(e) { setPostmortem({ error: e.message }); }
     setPmLoading(false);
