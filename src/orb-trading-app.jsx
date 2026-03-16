@@ -982,9 +982,9 @@ function PnlChart({ series }) {
 
 function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, watchlist, orbWindow, maxRisk, fetchYesterdayReport, fetchTradeLog, closeModal, setCloseModal, exitPrice, setExitPrice, logLoading }) {
   const API = "https://orb-signal-app-production.up.railway.app";
-  const [perfView, setPerfView] = React.useState("pnl");
-  const [postmortem, setPostmortem] = React.useState(null);
-  const [pmLoading, setPmLoading] = React.useState(false);
+  const [perfView, setPerfView] = useState("pnl");
+  const [postmortem, setPostmortem] = useState(null);
+  const [pmLoading, setPmLoading] = useState(false);
 
   const closed = tradeLog.filter(t => t.outcome !== "open" && t.pnl_dollar != null);
   let running = 0;
@@ -1280,7 +1280,7 @@ export default function ORBApp() {
       const data = await r.json();
       setFutures(data.futures || []);
       setPremarket(data.premarket || []);
-    } catch {}
+    } catch(e) { console.error("fetchFutures error:", e); }
     setFuturesLoading(false);
   }
   const [quotes, setQuotes] = useState({});
@@ -2502,7 +2502,7 @@ export default function ORBApp() {
                   <div style={{display:"flex", alignItems:"center", gap:10}}>
                     <button className="btn btn-ghost" onClick={() => { playSignalAlert(); }}
                       style={{fontSize:10, padding:"4px 10px"}} title="Preview signal sound">
-                      > Preview
+                      Preview
                     </button>
                     <button className={`toggle ${alertSound?"on":""}`} onClick={() => setAlertSound(v => !v)}/>
                   </div>
