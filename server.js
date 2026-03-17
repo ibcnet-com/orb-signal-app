@@ -1,10 +1,86 @@
 import express from "express";
 import cors from "cors";
+import pg from "pg";
+const { Pool } = pg;
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
+
+// PostgreSQL setup
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+
+async function initDB() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS daily_reports (
+        id SERIAL PRIMARY KEY,
+        report_date DATE NOT NULL,
+        report_type VARCHAR(20) NOT NULL,
+        ticker VARCHAR(10) NOT NULL,
+        dir VARCHAR(10),
+        entry NUMERIC,
+        exit_price NUMERIC,
+        pnl NUMERIC,
+        pnl_pct NUMERIC,
+        outcome VARCHAR(10),
+        conf VARCHAR(10),
+        entry_time VARCHAR(20),
+        orb_range_pct NUMERIC,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS report_summaries (
+        id SERIAL PRIMARY KEY,
+        report_date DATE NOT NULL UNIQUE,
+        orb_net NUMERIC,
+        orb_wins INTEGER,
+        orb_losses INTEGER,
+        orb_win_rate NUMERIC,
+        reverse_net NUMERIC,
+        reverse_wins INTEGER,
+        reverse_losses INTEGER,
+        edge NUMERIC,
+        total_signals INTEGER,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log("DB initialized");
+  } catch(e) {
+    console.error("DB init error:", e.message);
+  }
+}
+initDB();
+
+async function saveReport(date, results) {
+  try {
+    for (const r of results) {
+      if (!r.dir || r.dir === "none") continue;
+      await pool.query(
+        `INSERT INTO daily_reports (report_date, report_type, ticker, dir, entry, exit_price, pnl, pnl_pct, outcome, conf, entry_time, orb_range_pct)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT DO NOTHING`,
+        [date, "orb", r.ticker, r.dir, r.entry, r.exitPrice, r.pnl, r.pnlPct, r.outcome, r.conf, r.time, r.orbRangePct || null]
+      );
+    }
+    const signals = results.filter(r => r.dir && r.dir !== "none");
+    const wins = signals.filter(r => r.outcome === "win").length;
+    const losses = signals.filter(r => r.outcome === "loss").length;
+    const orbNet = signals.reduce((s, r) => s + (r.pnl || 0), 0);
+    const winRate = signals.length > 0 ? Math.round(wins / signals.length * 100) : 0;
+    await pool.query(
+      `INSERT INTO report_summaries (report_date, orb_net, orb_wins, orb_losses, orb_win_rate, reverse_net, reverse_wins, reverse_losses, edge, total_signals)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (report_date) DO UPDATE SET orb_net=$2, orb_wins=$3, orb_losses=$4, orb_win_rate=$5, reverse_net=$6, reverse_wins=$7, reverse_losses=$8, edge=$9, total_signals=$10`,
+      [date, orbNet, wins, losses, winRate, -orbNet, losses, wins, orbNet * 2, signals.length]
+    );
+    console.log("Saved report for", date);
+  } catch(e) {
+    console.error("saveReport error:", e.message);
+  }
+}
 
 // Health check
 app.get("/", (req, res) => res.json({ status: "ok", service: "ORBsignal" }));
@@ -353,7 +429,9 @@ app.get("/yesterday", async (req, res) => {
     return { ticker, date: yesterday, dir: orb.dir, entry: +entry.toFixed(2), stop: +stop.toFixed(2), t1: +t1.toFixed(2), exitPrice, exitType: t1Hit ? "T1 hit" : "EOD close", eod: +eod.toFixed(2), shares, pnl, pnlPct, outcome, conf: orb.conf, time: orb.time };
   }));
   const date = results.find(r => r.status === "fulfilled" && r.value.date)?.value?.date || null;
-  res.json({ date, results: results.map(r => r.status === "fulfilled" ? r.value : { ticker: "?", dir: "none", error: r.reason?.message }) });
+  const finalResults = results.map(r => r.status === "fulfilled" ? r.value : { ticker: "?", dir: "none", error: r.reason?.message });
+  if (date) saveReport(date, finalResults).catch(() => {});
+  res.json({ date, results: finalResults });
 });
 
 app.post("/ai-postmortem", async (req, res) => {
@@ -381,6 +459,85 @@ app.post("/ai-postmortem", async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Analytics: historical summaries for trend chart
+app.get("/analytics/summaries", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM report_summaries ORDER BY report_date DESC LIMIT 30");
+    res.json({ summaries: result.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Analytics: signal quality by confidence
+app.get("/analytics/quality", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT conf,
+        COUNT(*) as total,
+        SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END) as wins,
+        ROUND(AVG(pnl)::numeric, 2) as avg_pnl,
+        ROUND(SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END)::numeric / COUNT(*) * 100, 1) as win_rate
+      FROM daily_reports WHERE conf IS NOT NULL
+      GROUP BY conf ORDER BY win_rate DESC
+    `);
+    res.json({ quality: result.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Analytics: time of day
+app.get("/analytics/timeofday", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT entry_time,
+        COUNT(*) as total,
+        SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END) as wins,
+        ROUND(SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END)::numeric / COUNT(*) * 100, 1) as win_rate,
+        ROUND(AVG(pnl)::numeric, 2) as avg_pnl
+      FROM daily_reports WHERE entry_time IS NOT NULL
+      GROUP BY entry_time ORDER BY entry_time
+    `);
+    res.json({ timeofday: result.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Analytics: ticker scorecard
+app.get("/analytics/tickers", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ticker,
+        COUNT(*) as total,
+        SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END) as wins,
+        ROUND(SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END)::numeric / COUNT(*) * 100, 1) as win_rate,
+        ROUND(SUM(pnl)::numeric, 2) as total_pnl,
+        ROUND(AVG(pnl)::numeric, 2) as avg_pnl
+      FROM daily_reports
+      GROUP BY ticker ORDER BY win_rate DESC
+    `);
+    res.json({ tickers: result.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Analytics: ORB range analysis
+app.get("/analytics/ranges", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        CASE
+          WHEN orb_range_pct < 0.2 THEN 'Tiny (<0.2%)'
+          WHEN orb_range_pct < 0.5 THEN 'Small (0.2-0.5%)'
+          WHEN orb_range_pct < 1.0 THEN 'Medium (0.5-1%)'
+          ELSE 'Large (>1%)'
+        END as range_bucket,
+        COUNT(*) as total,
+        SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END) as wins,
+        ROUND(SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END)::numeric / COUNT(*) * 100, 1) as win_rate,
+        ROUND(AVG(pnl)::numeric, 2) as avg_pnl
+      FROM daily_reports WHERE orb_range_pct IS NOT NULL
+      GROUP BY range_bucket ORDER BY win_rate DESC
+    `);
+    res.json({ ranges: result.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.listen(PORT, () => {

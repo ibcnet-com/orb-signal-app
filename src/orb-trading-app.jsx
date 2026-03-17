@@ -985,6 +985,27 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
   const [perfView, setPerfView] = useState("pnl");
   const [postmortem, setPostmortem] = useState(null);
   const [pmLoading, setPmLoading] = useState(false);
+  const [analyticsView, setAnalyticsView] = useState("quality");
+  const [analytics, setAnalytics] = useState({ quality: null, timeofday: null, tickers: null, ranges: null, summaries: null });
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadAnalytics() {
+      setAnalyticsLoading(true);
+      try {
+        const [q, t, tk, r, s] = await Promise.all([
+          fetch(API + "/analytics/quality").then(x => x.json()),
+          fetch(API + "/analytics/timeofday").then(x => x.json()),
+          fetch(API + "/analytics/tickers").then(x => x.json()),
+          fetch(API + "/analytics/ranges").then(x => x.json()),
+          fetch(API + "/analytics/summaries").then(x => x.json()),
+        ]);
+        setAnalytics({ quality: q.quality, timeofday: t.timeofday, tickers: tk.tickers, ranges: r.ranges, summaries: s.summaries });
+      } catch(e) { console.error("analytics error:", e); }
+      setAnalyticsLoading(false);
+    }
+    loadAnalytics();
+  }, []);
 
   // Auto-analyze when yesterdayReport loads
   useEffect(() => {
@@ -1140,7 +1161,7 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
       <div className="perf-section">
         <div className="perf-header">
           <div>
-            <div className="perf-title">Reverse Report</div>
+            <div className="perf-title">King David's Reverse Report</div>
             <div className="perf-subtitle">What if you took the opposite signal?</div>
           </div>
         </div>
@@ -1259,6 +1280,178 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
                     <span style={{ fontSize: 12, color: "#e2e8f0" }}>{adj}</span>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="perf-section">
+        <div className="perf-header">
+          <div>
+            <div className="perf-title">Performance Analytics</div>
+            <div className="perf-subtitle">Historical signal intelligence</div>
+          </div>
+          <div className="perf-toggles">
+            {[["quality","Signal Quality"],["timeofday","Time of Day"],["tickers","Ticker Scorecard"],["ranges","ORB Range"],["edge","Edge Over Time"]].map(([v,l]) => (
+              <button key={v} className={"perf-toggle" + (analyticsView === v ? " active" : "")} onClick={() => setAnalyticsView(v)}>{l}</button>
+            ))}
+          </div>
+        </div>
+        {analyticsLoading && <div style={{ color: "#475569", fontSize: 12, padding: "16px 0", textAlign: "center" }}>Loading analytics...</div>}
+        {!analyticsLoading && analyticsView === "quality" && (
+          <div>
+            {(!analytics.quality || analytics.quality.length === 0) ? (
+              <div className="empty-state"><p>No data yet - run Yesterday&#39;s ORB Report to populate</p></div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead><tr style={{ borderBottom: "1px solid #1e2a3a" }}>
+                  {["Confidence","Signals","Wins","Win Rate","Avg P&L"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "#475569", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>{h}</th>)}
+                </tr></thead>
+                <tbody>{analytics.quality.map(r => (
+                  <tr key={r.conf} style={{ borderBottom: "1px solid #0f1520" }}>
+                    <td style={{ padding: "10px" }}><span className={"badge " + r.conf}>{r.conf === "high" ? "High Conf" : r.conf === "med" ? "Med Conf" : "Low Conf"}</span></td>
+                    <td style={{ padding: "10px", color: "#94a3b8" }}>{r.total}</td>
+                    <td style={{ padding: "10px", color: "#00d4aa" }}>{r.wins}</td>
+                    <td style={{ padding: "10px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ flex: 1, height: 6, background: "#0d1623", borderRadius: 3 }}>
+                          <div style={{ width: r.win_rate + "%", height: "100%", background: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d", borderRadius: 3 }} />
+                        </div>
+                        <span style={{ color: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d", fontFamily: "'Space Mono',monospace", fontSize: 11 }}>{r.win_rate}%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "10px", color: r.avg_pnl >= 0 ? "#00d4aa" : "#ff4d6d", fontFamily: "'Space Mono',monospace" }}>{r.avg_pnl >= 0 ? "+" : ""}${r.avg_pnl}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        )}
+        {!analyticsLoading && analyticsView === "timeofday" && (
+          <div>
+            {(!analytics.timeofday || analytics.timeofday.length === 0) ? (
+              <div className="empty-state"><p>No data yet - run Yesterday&#39;s ORB Report to populate</p></div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead><tr style={{ borderBottom: "1px solid #1e2a3a" }}>
+                  {["Entry Time","Signals","Win Rate","Avg P&L","Verdict"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "#475569", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>{h}</th>)}
+                </tr></thead>
+                <tbody>{analytics.timeofday.map(r => (
+                  <tr key={r.entry_time} style={{ borderBottom: "1px solid #0f1520" }}>
+                    <td style={{ padding: "10px", color: "#f0f4f8", fontFamily: "'Space Mono',monospace" }}>{r.entry_time}</td>
+                    <td style={{ padding: "10px", color: "#94a3b8" }}>{r.total}</td>
+                    <td style={{ padding: "10px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ flex: 1, height: 6, background: "#0d1623", borderRadius: 3 }}>
+                          <div style={{ width: r.win_rate + "%", height: "100%", background: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d", borderRadius: 3 }} />
+                        </div>
+                        <span style={{ color: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d", fontFamily: "'Space Mono',monospace", fontSize: 11 }}>{r.win_rate}%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "10px", color: r.avg_pnl >= 0 ? "#00d4aa" : "#ff4d6d", fontFamily: "'Space Mono',monospace" }}>{r.avg_pnl >= 0 ? "+" : ""}${r.avg_pnl}</td>
+                    <td style={{ padding: "10px", fontSize: 10, color: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d" }}>{r.win_rate >= 60 ? "Best window" : r.win_rate >= 40 ? "Moderate" : "Avoid"}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        )}
+        {!analyticsLoading && analyticsView === "tickers" && (
+          <div>
+            {(!analytics.tickers || analytics.tickers.length === 0) ? (
+              <div className="empty-state"><p>No data yet - run Yesterday&#39;s ORB Report to populate</p></div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead><tr style={{ borderBottom: "1px solid #1e2a3a" }}>
+                  {["Ticker","Signals","Win Rate","Total P&L","Avg P&L"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "#475569", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>{h}</th>)}
+                </tr></thead>
+                <tbody>{analytics.tickers.map(r => (
+                  <tr key={r.ticker} style={{ borderBottom: "1px solid #0f1520" }}>
+                    <td style={{ padding: "10px", color: "#f0f4f8", fontWeight: 700, fontFamily: "'Space Mono',monospace" }}>{r.ticker}</td>
+                    <td style={{ padding: "10px", color: "#94a3b8" }}>{r.total}</td>
+                    <td style={{ padding: "10px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ flex: 1, height: 6, background: "#0d1623", borderRadius: 3 }}>
+                          <div style={{ width: r.win_rate + "%", height: "100%", background: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d", borderRadius: 3 }} />
+                        </div>
+                        <span style={{ color: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d", fontFamily: "'Space Mono',monospace", fontSize: 11 }}>{r.win_rate}%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "10px", color: r.total_pnl >= 0 ? "#00d4aa" : "#ff4d6d", fontFamily: "'Space Mono',monospace" }}>{r.total_pnl >= 0 ? "+" : ""}${r.total_pnl}</td>
+                    <td style={{ padding: "10px", color: r.avg_pnl >= 0 ? "#00d4aa" : "#ff4d6d", fontFamily: "'Space Mono',monospace" }}>{r.avg_pnl >= 0 ? "+" : ""}${r.avg_pnl}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        )}
+        {!analyticsLoading && analyticsView === "ranges" && (
+          <div>
+            {(!analytics.ranges || analytics.ranges.length === 0) ? (
+              <div className="empty-state"><p>No data yet - run Yesterday&#39;s ORB Report to populate</p></div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead><tr style={{ borderBottom: "1px solid #1e2a3a" }}>
+                  {["ORB Range","Signals","Win Rate","Avg P&L","Verdict"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "#475569", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>{h}</th>)}
+                </tr></thead>
+                <tbody>{analytics.ranges.map(r => (
+                  <tr key={r.range_bucket} style={{ borderBottom: "1px solid #0f1520" }}>
+                    <td style={{ padding: "10px", color: "#f0f4f8" }}>{r.range_bucket}</td>
+                    <td style={{ padding: "10px", color: "#94a3b8" }}>{r.total}</td>
+                    <td style={{ padding: "10px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ flex: 1, height: 6, background: "#0d1623", borderRadius: 3 }}>
+                          <div style={{ width: r.win_rate + "%", height: "100%", background: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d", borderRadius: 3 }} />
+                        </div>
+                        <span style={{ color: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d", fontFamily: "'Space Mono',monospace", fontSize: 11 }}>{r.win_rate}%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "10px", color: r.avg_pnl >= 0 ? "#00d4aa" : "#ff4d6d", fontFamily: "'Space Mono',monospace" }}>{r.avg_pnl >= 0 ? "+" : ""}${r.avg_pnl}</td>
+                    <td style={{ padding: "10px", fontSize: 10, color: r.win_rate >= 60 ? "#00d4aa" : r.win_rate >= 40 ? "#facc15" : "#ff4d6d" }}>{r.win_rate >= 60 ? "High signal" : r.win_rate >= 40 ? "Moderate" : "Avoid"}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        )}
+        {!analyticsLoading && analyticsView === "edge" && (
+          <div>
+            {(!analytics.summaries || analytics.summaries.length === 0) ? (
+              <div className="empty-state"><p>No data yet - run Yesterday&#39;s ORB Report to populate</p></div>
+            ) : (
+              <div>
+                <div style={{ overflowX: "auto" }}>
+                  <div style={{ minWidth: Math.max(analytics.summaries.length * 60, 300), height: 160, display: "flex", alignItems: "flex-end", gap: 4, padding: "10px 0 20px", position: "relative" }}>
+                    <div style={{ position: "absolute", left: 0, right: 0, top: "50%", borderTop: "1px dashed #2a3a55" }}></div>
+                    {[...analytics.summaries].reverse().map((s, i) => {
+                      const maxEdge = Math.max(...analytics.summaries.map(x => Math.abs(x.edge || 0)), 1);
+                      const h = Math.abs(s.edge || 0) / maxEdge * 120;
+                      const color = (s.edge || 0) >= 0 ? "#00d4aa" : "#ff4d6d";
+                      return (
+                        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                          <div style={{ width: "100%", background: color, height: h + "px", borderRadius: "3px 3px 0 0", minHeight: 4, opacity: 0.8 }}></div>
+                          <span style={{ fontSize: 9, color: "#475569", whiteSpace: "nowrap" }}>{new Date(s.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginTop: 8 }}>
+                  <thead><tr style={{ borderBottom: "1px solid #1e2a3a" }}>
+                    {["Date","ORB Net","Reverse Net","Edge","Signals","Win Rate"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "#475569", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>{analytics.summaries.map(s => (
+                    <tr key={s.report_date} style={{ borderBottom: "1px solid #0f1520" }}>
+                      <td style={{ padding: "10px", color: "#94a3b8" }}>{new Date(s.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
+                      <td style={{ padding: "10px", color: s.orb_net >= 0 ? "#00d4aa" : "#ff4d6d", fontFamily: "'Space Mono',monospace" }}>{s.orb_net >= 0 ? "+" : ""}${s.orb_net}</td>
+                      <td style={{ padding: "10px", color: s.reverse_net >= 0 ? "#00d4aa" : "#ff4d6d", fontFamily: "'Space Mono',monospace" }}>{s.reverse_net >= 0 ? "+" : ""}${s.reverse_net}</td>
+                      <td style={{ padding: "10px", color: s.edge >= 0 ? "#00d4aa" : "#ff4d6d", fontFamily: "'Space Mono',monospace", fontWeight: 700 }}>{s.edge >= 0 ? "+" : ""}${s.edge}</td>
+                      <td style={{ padding: "10px", color: "#94a3b8" }}>{s.total_signals}</td>
+                      <td style={{ padding: "10px", color: s.orb_win_rate >= 60 ? "#00d4aa" : s.orb_win_rate >= 40 ? "#facc15" : "#ff4d6d" }}>{s.orb_win_rate}%</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
               </div>
             )}
           </div>
