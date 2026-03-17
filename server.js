@@ -360,15 +360,23 @@ app.post("/ai-postmortem", async (req, res) => {
   try {
     const { prompt } = req.body;
     if (!prompt) return res.status(400).json({ error: "No prompt" });
-    const KEY = process.env.ANTHROPIC_API_KEY;
-    if (!KEY) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    const KEY = process.env.GROQ_API_KEY;
+    if (!KEY) return res.status(500).json({ error: "GROQ_API_KEY not set" });
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": KEY, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + KEY },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }]
+      }),
     });
+    if (!r.ok) {
+      const err = await r.text();
+      return res.status(500).json({ error: "Groq error " + r.status + ": " + err });
+    }
     const data = await r.json();
-    const raw = data.content && data.content[0] ? data.content[0].text : ""; console.log("AI raw:", JSON.stringify(data).slice(0,300)); const text = raw || "";
+    const text = data.choices?.[0]?.message?.content || "";
     res.json({ text });
   } catch(e) {
     res.status(500).json({ error: e.message });
