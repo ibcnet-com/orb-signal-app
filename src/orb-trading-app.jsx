@@ -1528,6 +1528,25 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
 
 
 
+function AimCard({ aim, aimLabel, actualKey, orbWindow }) {
+  // For now show aim only - actual will populate from analytics
+  const windowLabel = orbWindow ? orbWindow + " min" : "15 min";
+  const actual = actualKey === "window" ? windowLabel : null;
+  return (
+    <div className="stat-box" style={{ padding: "16px 12px" }}>
+      <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>🎯 Aim</div>
+      <span className="val">{aim}</span>
+      <span className="lbl">{aimLabel}</span>
+      {actual && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #1a2030" }}>
+          <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>📊 Yours</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#00d4aa", fontFamily: "'Space Mono',monospace" }}>{actual} ✓</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ORBApp() {
   const [tab, setTab] = useState("learn");
   const [signals, setSignals] = useState([]);
@@ -2273,23 +2292,14 @@ export default function ORBApp() {
             <span>Day Trading Intelligence</span>
           </div>
           <h1>Master the<br/><em>Opening Range Breakout</em></h1>
-          <p>Learn the rules, understand the logic, and receive real-time breakout signals - all in one place.</p>
+          <p>Real-time ORB signals with AI-powered postmortem analysis, confidence scoring, and historical performance tracking — all in one place.</p>
         </div>
 
         {/* Stats */}
         <div className={`grid-3${tab !== "learn" ? " hero-mobile-hide" : ""}`} style={{marginBottom: 32}}>
-          <div className="stat-box">
-            <span className="val">68%</span>
-            <span className="lbl">Historical Win Rate</span>
-          </div>
-          <div className="stat-box">
-            <span className="val">2.1x</span>
-            <span className="lbl">Avg Risk/Reward</span>
-          </div>
-          <div className="stat-box">
-            <span className="val">9:30-10:00</span>
-            <span className="lbl">ORB Window</span>
-          </div>
+          <AimCard aim="68%" aimLabel="Win Rate" actualKey="winRate" />
+          <AimCard aim="2.1x" aimLabel="Risk/Reward" actualKey="rr" />
+          <AimCard aim="15 min" aimLabel="ORB Window" actualKey="window" orbWindow={orbWindow} />
         </div>
 
         {/* Tabs */}
@@ -2336,7 +2346,7 @@ export default function ORBApp() {
 
             <div className="grid-2">
               <div className="card">
-                <div className="card-title">Step-by-Step Rules</div>
+                <div className="card-title">How ORBsignal Works</div>
                 <div className="step">
                   <div className="step-num">1</div>
                   <div className="step-body">
@@ -2380,11 +2390,12 @@ export default function ORBApp() {
                   <div style={{display:"flex", flexWrap:"wrap"}}>
                     {[
                       "Candle closes above/below ORB",
-                      "Volume > 1.5  20-bar avg",
-                      "No major news event pending",
-                      "Market trending (not sideways)",
-                      "Entry before 11:00 AM",
-                      "Risk max 1% of account",
+                      "Volume above threshold (default 150% avg)",
+                      "No major news on ticker",
+                      "SPY trending in signal direction",
+                      "Entry before 11:00 AM ET",
+                      "Risk capped at configured max",
+                      "ORB range >= 0.2% (no tiny ranges)",
                     ].map((r,i) => <div key={i} className="rule-chip"><div className="dot"/>{r}</div>)}
                   </div>
                 </div>
@@ -2393,14 +2404,32 @@ export default function ORBApp() {
                   <div style={{display:"flex", flexWrap:"wrap"}}>
                     {[
                       "Wick-only breakout (no close)",
-                      "Low volume < 1  average",
-                      "Entry after 11:30 AM",
-                      "FOMC / CPI days (volatility)",
+                      "Wick-only breakout (no candle close)",
+                      "Volume below configured threshold",
+                      "Entry after 11:30 AM ET",
+                      "FOMC / CPI / NFP days",
                       "Tiny ORB range (< 0.2%)",
+                      "Against SPY trend direction",
                     ].map((r,i) => <div key={i} className="rule-chip pill-warning"><div className="dot"/>{r}</div>)}
-                  </div>
                 </div>
                 <div className="card" style={{marginTop:0}}>
+                  <div className="card-title">What's New in ORBsignal</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:12,marginTop:8}}>
+                    {[
+                      {icon:"📊",title:"Yesterday's ORB Report",desc:"See exactly what happened if you followed every signal yesterday — entry, exit, P&L, and outcome."},
+                      {icon:"👑",title:"King David's Reverse Report",desc:"What if you did the opposite of every signal? Proves your ORB edge with hard numbers."},
+                      {icon:"🤖",title:"AI Postmortem",desc:"Groq-powered root cause analysis of every signal with diagnosis and actionable improvement rules."},
+                      {icon:"📈",title:"Performance Analytics",desc:"Signal quality by confidence, time-of-day win rates, ticker scorecard, and ORB range analysis."},
+                      {icon:"🧪",title:"Signal Simulator",desc:"Test with real Mag 7 market data and see a fully annotated signal card before going live."},
+                    ].map((f,i) => (
+                      <div key={i} style={{flex:"1 1 180px",background:"#080b10",border:"1px solid #1a2030",borderRadius:10,padding:"14px 16px"}}>
+                        <div style={{fontSize:22,marginBottom:8}}>{f.icon}</div>
+                        <div style={{fontSize:12,fontWeight:700,color:"#f0f4f8",marginBottom:6}}>{f.title}</div>
+                        <div style={{fontSize:11,color:"#475569",lineHeight:1.6}}>{f.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                   <div className="card-title">🧪 Signal Simulator</div>
                   <p style={{fontSize:12, color:"#64748b", marginBottom:16, lineHeight:1.6}}>
                     Picks a random <strong style={{color:"#94a3b8"}}>Mag 7</strong> stock, fetches real market data, and renders a fully annotated signal card - so you can learn exactly what each number means before going live.
@@ -2837,7 +2866,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v2.3.0
+                v2.6.0
               </a>
             </div>
           </div>
