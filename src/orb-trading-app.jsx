@@ -1140,6 +1140,90 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
       <div className="perf-section">
         <div className="perf-header">
           <div>
+            <div className="perf-title">Reverse Report</div>
+            <div className="perf-subtitle">What if you took the opposite signal?</div>
+          </div>
+        </div>
+        {!yesterdayReport && (
+          <div style={{ color: "#475569", fontSize: 12, padding: "16px 0", textAlign: "center" }}>Load Yesterday&#39;s ORB Report first</div>
+        )}
+        {yesterdayReport && ydaySignals.length === 0 && (
+          <div style={{ color: "#475569", fontSize: 12, padding: "16px 0", textAlign: "center" }}>No signals to reverse</div>
+        )}
+        {yesterdayReport && ydaySignals.length > 0 && (
+          <div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #1e2a3a" }}>
+                    {["Ticker","Reversed Signal","Entry","Exit","Reverse P&L","ORB P&L","Edge"].map(h => (
+                      <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "#475569", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ydaySignals.map(r => {
+                    const revDir = r.dir === "long" ? "short" : "long";
+                    const revPnl = -(r.pnl || 0);
+                    const revWin = revPnl > 0;
+                    const orbWin = (r.pnl || 0) > 0;
+                    const edge = (r.pnl || 0) - revPnl;
+                    return (
+                      <tr key={r.ticker} style={{ borderBottom: "1px solid #0f1520" }}>
+                        <td style={{ padding: "10px", color: "#f0f4f8", fontWeight: 700, fontFamily: "'Space Mono',monospace" }}>{r.ticker}</td>
+                        <td style={{ padding: "10px", color: revDir === "long" ? "#00d4aa" : "#ff4d6d" }}>
+                          {revDir === "long" ? "^ LONG" : "v SHORT"}
+                          <span style={{ color: "#2a3a55", fontSize: 10, marginLeft: 6 }}>was {r.dir === "long" ? "^ LONG" : "v SHORT"}</span>
+                        </td>
+                        <td style={{ padding: "10px", color: "#94a3b8" }}>${r.entry}</td>
+                        <td style={{ padding: "10px", color: "#94a3b8" }}>${r.exitPrice}</td>
+                        <td style={{ padding: "10px", color: revWin ? "#00d4aa" : "#ff4d6d" }}>
+                          {revPnl >= 0 ? "+" : ""}${revPnl} {revWin ? "✅" : "❌"}
+                        </td>
+                        <td style={{ padding: "10px", color: orbWin ? "#00d4aa" : "#ff4d6d" }}>
+                          {(r.pnl || 0) >= 0 ? "+" : ""}${r.pnl} {orbWin ? "✅" : "❌"}
+                        </td>
+                        <td style={{ padding: "10px", color: edge >= 0 ? "#00d4aa" : "#ff4d6d", fontFamily: "'Space Mono',monospace" }}>
+                          {edge >= 0 ? "+" : ""}${edge.toFixed(0)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 16, padding: "14px 16px", background: "#0d1623", borderRadius: 10 }}>
+              <div className="perf-stat">
+                <span className="perf-stat-val" style={{ color: ydayNet >= 0 ? "#00d4aa" : "#ff4d6d" }}>{ydayNet >= 0 ? "+" : ""}${ydayNet.toFixed(0)}</span>
+                <span className="perf-stat-lbl">ORB Net</span>
+              </div>
+              <div className="perf-stat">
+                <span className="perf-stat-val" style={{ color: (-ydayNet) >= 0 ? "#00d4aa" : "#ff4d6d" }}>{(-ydayNet) >= 0 ? "+" : ""}${(-ydayNet).toFixed(0)}</span>
+                <span className="perf-stat-lbl">Reverse Net</span>
+              </div>
+              <div className="perf-stat">
+                <span className="perf-stat-val" style={{ color: ydayWins >= ydayLosses ? "#00d4aa" : "#ff4d6d" }}>{ydayWins}W / {ydayLosses}L</span>
+                <span className="perf-stat-lbl">ORB Record</span>
+              </div>
+              <div className="perf-stat">
+                <span className="perf-stat-val" style={{ color: ydayLosses >= ydayWins ? "#00d4aa" : "#ff4d6d" }}>{ydayLosses}W / {ydayWins}L</span>
+                <span className="perf-stat-lbl">Reverse Record</span>
+              </div>
+              <div className="perf-stat">
+                <span className="perf-stat-val" style={{ color: (ydayNet * 2) >= 0 ? "#00d4aa" : "#ff4d6d", fontSize: 16 }}>{(ydayNet * 2) >= 0 ? "+" : ""}${(ydayNet * 2).toFixed(0)}</span>
+                <span className="perf-stat-lbl">Your Edge Today</span>
+              </div>
+              <div style={{ width: "100%", marginTop: 4, padding: "8px 12px", background: ydayNet >= 0 ? "rgba(0,212,170,0.08)" : "rgba(255,77,109,0.08)", borderLeft: "2px solid " + (ydayNet >= 0 ? "#00d4aa" : "#ff4d6d"), borderRadius: "0 6px 6px 0", fontSize: 12, color: ydayNet >= 0 ? "#00d4aa" : "#ff4d6d" }}>
+                {ydayNet >= 0 ? "ORB strategy confirmed - outperformed reverse by $" + (ydayNet * 2).toFixed(0) : "Reverse outperformed ORB today - review signal quality"}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="perf-section">
+        <div className="perf-header">
+          <div>
             <div className="perf-title">AI Postmortem</div>
             <div className="perf-subtitle">Root cause analysis of yesterday's signals</div>
           </div>
