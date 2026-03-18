@@ -1591,6 +1591,7 @@ export default function ORBApp() {
   const [lastScanned, setLastScanned] = useState(null);
   const [scanError, setScanError] = useState(null);
   const [orbWindow, setOrbWindow] = useState(() => loadFromStorage("orb_window", 15));
+  const [staleMinutes, setStaleMinutes] = useState(() => loadFromStorage("orb_staleminutes", 20));
   const [volFilter, setVolFilter] = useState(() => loadFromStorage("orb_volfilter", 150));
   const [maxRisk, setMaxRisk]     = useState(() => loadFromStorage("orb_maxrisk", 1000));
   const [alertSound, setAlertSound] = useState(() => loadFromStorage("orb_alertsound", true));
@@ -2129,6 +2130,7 @@ export default function ORBApp() {
     const [elapsed, setElapsed] = useState("");
     // Use the persistent fire time from parent - survives re-renders across scans
     const firedAt = signalFireTimes.current[s.ticker] || Date.now();
+    const staleMs = (staleMinutes || 20) * 60 * 1000;
 
     useEffect(() => {
       const update = () => {
@@ -2145,10 +2147,11 @@ export default function ORBApp() {
     const t  = calcTrade(s);
     const now = new Date();
     const late = now.getHours() >= 11;
+    const stale = (Date.now() - firedAt) > staleMs;
     const orderType = "Market Order";
 
     return (
-      <div className={`signal-card ${s.dir}`} key={`${s.id}-${idx}`}>
+      <div className={`signal-card ${s.dir}${stale ? " stale" : ""}`} key={`${s.id}-${idx}`}>
         {/* Header */}
         <div className="signal-header">
           <div className="signal-ticker">
@@ -2159,8 +2162,9 @@ export default function ORBApp() {
             </div>
           </div>
           <div style={{display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6}}>
-            <span className={`signal-timer ${late ? "urgent" : ""}`}> {elapsed}</span>
-            {late && <span className="time-warning">! Late entry - use caution</span>}
+            <span className={`signal-timer ${stale ? "stale" : late ? "urgent" : ""}`}> {elapsed}</span>
+            {stale && <span className="time-warning" style={{color:"#ff4d6d"}}>⚠️ Signal stale — momentum likely faded</span>}
+            {!stale && late && <span className="time-warning">! Late entry - use caution</span>}
           </div>
         </div>
 
