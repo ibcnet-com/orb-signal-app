@@ -138,7 +138,7 @@ const style = `
 
   @media(max-width:768px) {
     /* Global */
-    body { padding-bottom: 72px; }
+    body { padding-bottom: 86px; }
 
     /* Header - fix horizontal overflow */
     .header { padding: 10px 14px; }
@@ -168,17 +168,17 @@ const style = `
       flex: 1;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      gap: 3px;
-      padding: 10px 4px 8px;
+      gap: 4px;
+      padding: 12px 4px 10px;
       background: transparent; border: none;
       color: #475569; cursor: pointer;
       font-family: 'Space Mono', monospace;
-      font-size: 8px; letter-spacing: 0.05em;
+      font-size: 10px; letter-spacing: 0.05em;
       text-transform: uppercase;
       transition: color 0.2s;
     }
     .bottom-nav button.active { color: #00d4aa; }
-    .bottom-nav button .nav-icon { font-size: 18px; line-height: 1; }
+    .bottom-nav button .nav-icon { font-size: 22px; line-height: 1; }
 
     /* Layout */
     .app-wrap { padding: 0 12px; }
@@ -2395,7 +2395,7 @@ export default function ORBApp() {
                       "SPY trending in signal direction",
                       "Entry before 11:00 AM ET",
                       "Risk capped at configured max",
-                      "ORB range >= 0.2% (no tiny ranges)",
+                      "ORB range ≥ 0.2% (no tiny ranges)",
                     ].map((r,i) => <div key={i} className="rule-chip"><div className="dot"/>{r}</div>)}
                   </div>
                 </div>
