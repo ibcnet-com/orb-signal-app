@@ -397,8 +397,24 @@ app.get("/yesterday", async (req, res) => {
   const maxRisk = parseInt(req.query.maxRisk) || 1000;
   const now = new Date();
   const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  et.setDate(et.getDate() - (et.getDay() === 1 ? 3 : et.getDay() === 0 ? 2 : 1));
+  const hour = et.getHours();
+  const minute = et.getMinutes();
+  const day = et.getDay(); // 0=Sun, 1=Mon, 6=Sat
+  const marketClosed = hour > 16 || (hour === 16 && minute >= 30);
+
+  // If market has closed today (after 4:30pm ET) on a weekday, show today's session
+  // Otherwise show the previous trading day
+  if (day >= 1 && day <= 5 && marketClosed) {
+    // Use today - market is closed, today's data is complete
+  } else {
+    // Go back to last trading day
+    if (day === 1) et.setDate(et.getDate() - 3);      // Monday -> Friday
+    else if (day === 0) et.setDate(et.getDate() - 2); // Sunday -> Friday
+    else if (day === 6) et.setDate(et.getDate() - 1); // Saturday -> Friday
+    else et.setDate(et.getDate() - 1);                // Weekday before close -> yesterday
+  }
   const yesterday = et.toISOString().slice(0, 10);
+  console.log("Yesterday report date:", yesterday, "ET hour:", hour, "marketClosed:", marketClosed);
   const results = await Promise.allSettled(tickers.map(async ticker => {
     const url = "https://api.polygon.io/v2/aggs/ticker/" + ticker + "/range/1/minute/" + yesterday + "/" + yesterday + "?adjusted=true&sort=asc&limit=500&apiKey=" + POLYGON_KEY;
     const json = await polygonFetch(url);
