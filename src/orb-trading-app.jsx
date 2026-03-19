@@ -1105,7 +1105,7 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
       <div className="perf-section">
         <div className="perf-header">
           <div>
-            <div className="perf-title">Yesterday's ORB Report</div>
+            <div className="perf-title">{marketClosed && new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"})).getHours() >= 16 ? "Today's ORB Report" : "Yesterday's ORB Report"}</div>
             <div className="perf-subtitle">{ydayDate ? ydayDate + " - acting on every signal:" : "Click Refresh to load"}</div>
           </div>
           <button className="btn btn-ghost" style={{ fontSize: 11, padding: "6px 14px" }} onClick={fetchYesterdayReport} disabled={yesterdayLoading}>
@@ -2599,6 +2599,35 @@ export default function ORBApp() {
                   {scanning ? "- Scanning..." : "- Scan Now"}
                 </button>
               </div>
+
+
+              {marketClosed && !forceOverride && (
+                <div style={{background:"rgba(71,85,105,0.15)",border:"1px solid #2a3a55",borderRadius:10,padding:"16px 20px",marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:700,color:"#f0f4f8",marginBottom:4}}>
+                        {marketStatus === "weekend" ? "🌙 Markets Closed — Weekend" : marketStatus === "premarket" ? "🌅 Pre-Market Hours" : "🔴 Markets Closed"}
+                      </div>
+                      <div style={{fontSize:11,color:"#475569"}}>{marketMessage || "ORB signals available Mon-Fri 9:30 AM - 4:00 PM ET"}</div>
+                    </div>
+                    <button className="btn btn-ghost" style={{fontSize:11,padding:"8px 16px",borderColor:"#facc1544",color:"#facc15"}}
+                      onClick={() => { setForceOverride(true); setTimeout(runScan, 100); }}>
+                      ⚡ Force Scan Anyway
+                    </button>
+                  </div>
+                </div>
+              )}
+              {forceOverride && (
+                <div style={{background:"rgba(250,204,21,0.06)",border:"1px solid #facc1533",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:11,color:"#facc15",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span>⚡ Force override active — showing outside-hours data</span>
+                  <button onClick={() => { setForceOverride(false); setMarketClosed(true); }} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:11}}>✕ Cancel</button>
+                </div>
+              )}
+              {invalidatedToast && (
+                <div style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:"#0d1623",border:"1px solid #ff4d6d44",borderRadius:10,padding:"12px 20px",fontSize:12,color:"#ff4d6d",zIndex:500,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",whiteSpace:"nowrap"}}>
+                  🚫 {invalidatedToast}
+                </div>
+              )}
 
               {scanError && (
                 <div style={{background:"rgba(255,77,109,0.08)", border:"1px solid #ff4d6d33",
