@@ -1551,8 +1551,8 @@ function AimCard({ aim, aimLabel, actualKey, orbWindow }) {
 export default function ORBApp() {
   const [tab, setTab] = useState("learn");
   const [signals, setSignals] = useState([]);
-  const signalsRef = React.useRef([]);
-  const quotesRef = React.useRef({});
+  const signalsRef = useRef([]);
+  const quotesRef = useRef({});
   const [noBreakout, setNoBreakout] = useState([]);
   const [spyTrend, setSpyTrend]           = useState(null);
   const [economicEvent, setEconomicEvent] = useState(null);
