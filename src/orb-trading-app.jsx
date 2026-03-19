@@ -1590,6 +1590,10 @@ export default function ORBApp() {
   const [scanning, setScanning] = useState(false);
   const [lastScanned, setLastScanned] = useState(null);
   const [scanError, setScanError] = useState(null);
+  const [marketClosed, setMarketClosed] = useState(false);
+  const [marketStatus, setMarketStatus] = useState(null);
+  const [marketMessage, setMarketMessage] = useState(null);
+  const [forceOverride, setForceOverride] = useState(false);
   const [orbWindow, setOrbWindow] = useState(() => loadFromStorage("orb_window", 15));
   const [staleMinutes, setStaleMinutes] = useState(() => loadFromStorage("orb_staleminutes", 20));
   const [volFilter, setVolFilter] = useState(() => loadFromStorage("orb_volfilter", 150));
@@ -1714,12 +1718,15 @@ export default function ORBApp() {
     setScanError(null);
     try {
       const tickers = watchlist.join(",");
-      const r = await fetch(`${API}/scan?tickers=${tickers}&orbWindow=${orbWindow}&volFilter=${volFilter}`);
+      const r = await fetch(`${API}/scan?tickers=${tickers}&orbWindow=${orbWindow}&volFilter=${volFilter}${forceOverride ? "&force=true" : ""}`);
       const data = await r.json();
       setSignals(data.signals || []);
       setNoBreakout(data.noBreakout || []);
       if (data.spyTrend)      setSpyTrend(data.spyTrend);
       if (data.economicEvent) setEconomicEvent(data.economicEvent);
+      setMarketClosed(data.marketClosed || false);
+      setMarketStatus(data.marketStatus || null);
+      setMarketMessage(data.message || null);
       setLastScanned(new Date().toLocaleTimeString());
       // Only alert for tickers we haven't seen before this session
       const newTickers = (data.signals || []).filter(s => !alertedTickers.current.has(s.ticker));

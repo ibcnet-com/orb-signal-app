@@ -282,11 +282,37 @@ app.get("/scan", async (req, res) => {
   const tickers = (req.query.tickers || "SPY,QQQ,AAPL,TSLA").split(",");
   const orbWindow = parseInt(req.query.orbWindow) || 15;
   const volFilter = parseInt(req.query.volFilter) || 150;
+  const forceOverride = req.query.force === "true";
   const errors = [];
   const signals = [];
   const noBreakout = [];
   let spyTrend = { trend: "unknown", spyChange: null };
   const economicEvent = checkEconomicCalendar();
+
+  // Market hours check (9:30am - 4:00pm ET, Mon-Fri)
+  const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = nowET.getDay();
+  const h = nowET.getHours();
+  const m = nowET.getMinutes();
+  const mins = h * 60 + m;
+  const isWeekday = day >= 1 && day <= 5;
+  const isMarketHours = isWeekday && mins >= 9 * 60 + 30 && mins < 16 * 60;
+  const isPreMarket = isWeekday && mins >= 4 * 60 && mins < 9 * 60 + 30;
+  const marketStatus = isMarketHours ? "open" : isPreMarket ? "premarket" : !isWeekday ? "weekend" : "closed";
+
+  if (!isMarketHours && !forceOverride) {
+    return res.json({
+      signals: [], noBreakout: [], errors: [],
+      spyTrend: { trend: "unknown", spyChange: null },
+      economicEvent,
+      marketClosed: true,
+      marketStatus,
+      scannedAt: new Date().toISOString(),
+      message: marketStatus === "weekend" ? "Markets closed — weekend" :
+                marketStatus === "premarket" ? "Pre-market hours — ORB signals start at 9:30 AM ET" :
+                "Markets closed — ORB signals available Mon-Fri 9:30 AM - 4:00 PM ET"
+    });
+  }
   const results = await Promise.allSettled(tickers.map(async ticker => {
     try {
       const candles = await fetchCandles(ticker);
