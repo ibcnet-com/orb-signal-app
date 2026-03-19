@@ -981,7 +981,7 @@ function PnlChart({ series }) {
   );
 }
 
-function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, watchlist, orbWindow, maxRisk, fetchYesterdayReport, fetchTradeLog, closeModal, setCloseModal, exitPrice, setExitPrice, logLoading }) {
+function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, watchlist, orbWindow, maxRisk, fetchYesterdayReport, fetchTradeLog, closeModal, setCloseModal, exitPrice, setExitPrice, logLoading, marketClosed }) {
   const API = "https://orb-signal-app-production.up.railway.app";
   const [perfView, setPerfView] = useState("pnl");
   const [postmortem, setPostmortem] = useState(null);
@@ -2798,7 +2798,7 @@ export default function ORBApp() {
         )}
 
         {/* === TRADE LOG TAB === */}
-        {tab === "tradelog" && <TradeLogTab tradeLog={tradeLog} tradeStats={tradeStats} yesterdayReport={yesterdayReport} yesterdayLoading={yesterdayLoading} watchlist={watchlist} orbWindow={orbWindow} maxRisk={maxRisk} fetchYesterdayReport={fetchYesterdayReport} fetchTradeLog={fetchTradeLog} closeModal={closeModal} setCloseModal={setCloseModal} exitPrice={exitPrice} setExitPrice={setExitPrice} logLoading={logLoading} />}
+        {tab === "tradelog" && <TradeLogTab tradeLog={tradeLog} tradeStats={tradeStats} yesterdayReport={yesterdayReport} yesterdayLoading={yesterdayLoading} watchlist={watchlist} orbWindow={orbWindow} maxRisk={maxRisk} fetchYesterdayReport={fetchYesterdayReport} fetchTradeLog={fetchTradeLog} closeModal={closeModal} setCloseModal={setCloseModal} exitPrice={exitPrice} setExitPrice={setExitPrice} logLoading={logLoading} marketClosed={marketClosed} />}
 
         {tab === "configure" && (
           <div className="grid-2">
