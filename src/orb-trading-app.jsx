@@ -1705,6 +1705,39 @@ export default function ORBApp() {
   }
 
   // Fetch live quotes for header bar
+  function checkSignalValidity(currentSignals, currentQuotes) {
+    if (!currentSignals || currentSignals.length === 0) return;
+    const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const h = nowET.getHours(), m = nowET.getMinutes();
+    const mins = h * 60 + m;
+    const hardCutoff = mins >= 15 * 60 + 30;
+    const lateNoMomentum = mins >= 11 * 60 + 30;
+    const stillValid = [];
+    const removed = [];
+    for (const sig of currentSignals) {
+      const quote = currentQuotes[sig.ticker];
+      const price = quote?.price;
+      let reason = null;
+      if (hardCutoff) {
+        reason = sig.ticker + " removed — 3:30 PM ET cutoff";
+      } else if (price && sig.dir === "long" && price <= sig.orbLow) {
+        reason = sig.ticker + " invalidated — price returned inside ORB range";
+      } else if (price && sig.dir === "short" && price >= sig.orbHigh) {
+        reason = sig.ticker + " invalidated — price returned inside ORB range";
+      } else if (price && lateNoMomentum && Math.abs(price - sig.price) / sig.price < 0.001) {
+        reason = sig.ticker + " removed — no momentum after 11:30 AM";
+      }
+      if (reason) removed.push(reason);
+      else stillValid.push(sig);
+    }
+    if (removed.length > 0) {
+      setSignals(stillValid);
+      signalsRef.current = stillValid;
+      setInvalidatedToast(removed[removed.length - 1]);
+      setTimeout(() => setInvalidatedToast(null), 5000);
+    }
+  }
+
   async function fetchQuotes() {
     try {
       const r = await fetch(`${API}/quote?tickers=SPY,QQQ,VIX`);
