@@ -1551,6 +1551,8 @@ function AimCard({ aim, aimLabel, actualKey, orbWindow }) {
 export default function ORBApp() {
   const [tab, setTab] = useState("learn");
   const [signals, setSignals] = useState([]);
+  const signalsRef = React.useRef([]);
+  const quotesRef = React.useRef({});
   const [noBreakout, setNoBreakout] = useState([]);
   const [spyTrend, setSpyTrend]           = useState(null);
   const [economicEvent, setEconomicEvent] = useState(null);
@@ -1595,6 +1597,7 @@ export default function ORBApp() {
   const [marketStatus, setMarketStatus] = useState(null);
   const [marketMessage, setMarketMessage] = useState(null);
   const [forceOverride, setForceOverride] = useState(false);
+  const [invalidatedToast, setInvalidatedToast] = useState(null);
   const [orbWindow, setOrbWindow] = useState(() => loadFromStorage("orb_window", 15));
   const [staleMinutes, setStaleMinutes] = useState(() => loadFromStorage("orb_staleminutes", 20));
   const [volFilter, setVolFilter] = useState(() => loadFromStorage("orb_volfilter", 150));
@@ -1707,8 +1710,10 @@ export default function ORBApp() {
       const r = await fetch(`${API}/quote?tickers=SPY,QQQ,VIX`);
       const data = await r.json();
       const map = {};
-      data.quotes.forEach(q => { map[q.ticker] = q; });
+      if (data.quotes) Object.entries(data.quotes).forEach(([k,v]) => { map[k] = v; });
       setQuotes(map);
+      quotesRef.current = map;
+      checkSignalValidity(signalsRef.current, map);
     } catch {}
   }
 
@@ -1721,7 +1726,9 @@ export default function ORBApp() {
       const tickers = watchlist.join(",");
       const r = await fetch(`${API}/scan?tickers=${tickers}&orbWindow=${orbWindow}&volFilter=${volFilter}${forceOverride ? "&force=true" : ""}`);
       const data = await r.json();
-      setSignals(data.signals || []);
+      const newSignals = data.signals || [];
+      setSignals(newSignals);
+      signalsRef.current = newSignals;
       setNoBreakout(data.noBreakout || []);
       if (data.spyTrend)      setSpyTrend(data.spyTrend);
       if (data.economicEvent) setEconomicEvent(data.economicEvent);
@@ -1827,7 +1834,7 @@ export default function ORBApp() {
     runScan();
     fetchTradeLog();
     fetchFutures();
-    const quoteInt   = setInterval(fetchQuotes, 30000);
+    const quoteInt = setInterval(fetchQuotes, 30000);
     const scanInt    = setInterval(runScan, 60000);
     const logInt     = setInterval(fetchTradeLog, 60000);
     const futuresInt = setInterval(fetchFutures, 60000);
