@@ -58,6 +58,7 @@ const style = `
     position: relative;
     overflow: hidden;
   }
+  .hero-hide { display: none !important; }
   .hero::before {
     content: '';
     position: absolute; inset: 0;
@@ -2298,7 +2299,7 @@ export default function ORBApp() {
       </header>
 
       <main className="main">
-        <div className={`hero${tab !== "learn" ? " hero-mobile-hide" : ""}`}>
+        <div className={`hero${tab !== "learn" ? " hero-mobile-hide hero-hide" : ""}`}>
           <div className="hero-label">
             <span>Day Trading Intelligence</span>
           </div>
@@ -2307,7 +2308,7 @@ export default function ORBApp() {
         </div>
 
         {/* Stats */}
-        <div className={`grid-3${tab !== "learn" ? " hero-mobile-hide" : ""}`} style={{marginBottom: 32}}>
+        <div className={`grid-3${tab !== "learn" ? " hero-mobile-hide hero-hide" : ""}`} style={{marginBottom: 32}}>
           <AimCard aim="68%" aimLabel="Win Rate" actualKey="winRate" />
           <AimCard aim="2.1x" aimLabel="Risk/Reward" actualKey="rr" />
           <AimCard aim="15 min" aimLabel="ORB Window" actualKey="window" orbWindow={orbWindow} />
