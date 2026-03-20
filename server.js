@@ -442,10 +442,19 @@ app.get("/yesterday", async (req, res) => {
   const yesterday = et.toISOString().slice(0, 10);
   console.log("Yesterday report date:", yesterday, "ET hour:", hour, "marketClosed:", marketClosed);
   const results = await Promise.allSettled(tickers.map(async ticker => {
-    const url = "https://api.polygon.io/v2/aggs/ticker/" + ticker + "/range/1/minute/" + yesterday + "/" + yesterday + "?adjusted=true&sort=asc&limit=500&apiKey=" + POLYGON_KEY;
-    const json = await polygonFetch(url);
-    if (!json.results?.length) return { ticker, dir: "none", date: yesterday };
-    const candles = json.results.map(bar => ({ time: new Date(bar.t), open: bar.o, high: bar.h, low: bar.l, close: bar.c, volume: bar.v || 0 }));
+    const url = "https://query2.finance.yahoo.com/v8/finance/chart/" + ticker + "?interval=1m&range=5d&includePrePost=false";
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Accept": "application/json" } });
+    if (!res.ok) throw new Error("Yahoo " + res.status + " for " + ticker);
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
+    if (!result) return { ticker, dir: "none", date: yesterday };
+    const { open, high, low, close, volume } = result.indicators.quote[0];
+    // Filter to just the target date
+    const allCandles = result.timestamp.map((ts, i) => ({
+      time: new Date(ts * 1000), open: open[i], high: high[i], low: low[i], close: close[i], volume: volume[i] || 0
+    })).filter(c => c.open !== null && c.close !== null);
+    const candles = allCandles.filter(c => c.time.toISOString().slice(0,10) === yesterday);
+    if (!candles.length) return { ticker, dir: "none", date: yesterday };
     const orb = detectORB(candles, orbWindow, 100);
     if (!orb || orb.dir === "none") return { ticker, dir: "none", orbHigh: orb?.orbHigh, orbLow: orb?.orbLow, date: yesterday };
     const entry = orb.price;
