@@ -1627,62 +1627,6 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
         )}
       </div>
 
-      {/* Alpaca Order Modal */}
-      {orderModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div className="card" style={{width:360,margin:0}}>
-            <div className="card-title">▶ Paper Trade — {orderModal.ticker}</div>
-            {!orderResult && !orderLoading && (() => {
-              const orbRange = orderModal.orbHigh - orderModal.orbLow;
-              const stop = orderModal.dir === "long" ? +(orderModal.orbHigh - orbRange * 0.1).toFixed(2) : +(orderModal.orbLow + orbRange * 0.1).toFixed(2);
-              const riskPerShare = Math.abs(orderModal.price - stop);
-              const shares = riskPerShare > 0 ? Math.floor(maxRisk / riskPerShare) : 1;
-              const target = orderModal.dir === "long" ? +(orderModal.price + riskPerShare * 2).toFixed(2) : +(orderModal.price - riskPerShare * 2).toFixed(2);
-              const totalRisk = +(riskPerShare * shares).toFixed(2);
-              return (
-                <div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-                    {[["Direction",orderModal.dir==="long"?"^ LONG":"v SHORT"],["Entry","\$"+orderModal.price],["Stop Loss","\$"+stop],["Target 1","\$"+target],["Shares",shares+" shares"],["Max Risk","\$"+totalRisk]].map(([l,v],i) => (
-                      <div key={i} style={{background:"#080b10",borderRadius:8,padding:"10px 12px"}}>
-                        <div style={{fontSize:10,color:"#475569",marginBottom:4}}>{l}</div>
-                        <div style={{fontSize:13,fontFamily:"'Space Mono',monospace",color:l==="Direction"?(orderModal.dir==="long"?"#00d4aa":"#ff4d6d"):l==="Stop Loss"?"#ff4d6d":l==="Target 1"?"#00d4aa":"#f0f4f8",fontWeight:700}}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <p style={{fontSize:11,color:"#475569",marginBottom:16}}>This will place a bracket order on Alpaca Paper Trading with automatic stop loss and take profit.</p>
-                  <div style={{display:"flex",gap:8}}>
-                    <button className="btn btn-primary" style={{flex:1}} onClick={() => placeOrder(orderModal)}>
-                      ▶ Execute Paper Trade
-                    </button>
-                    <button className="btn btn-ghost" onClick={() => { setOrderModal(null); setOrderResult(null); }}>Cancel</button>
-                  </div>
-                </div>
-              );
-            })()}
-            {orderLoading && <div style={{textAlign:"center",padding:"24px 0",color:"#475569"}}>Placing order...</div>}
-            {orderResult && (
-              <div>
-                {orderResult.success ? (
-                  <div>
-                    <div style={{textAlign:"center",fontSize:32,marginBottom:12}}>✅</div>
-                    <div style={{textAlign:"center",color:"#00d4aa",fontWeight:700,marginBottom:8}}>Order Placed!</div>
-                    <div style={{background:"#080b10",borderRadius:8,padding:"12px",fontSize:11,color:"#94a3b8",marginBottom:16}}>
-                      <div>Order ID: {orderResult.order?.id?.slice(0,16)}...</div>
-                      <div>Shares: {orderResult.shares}</div>
-                      <div>Stop: \${orderResult.stop}</div>
-                      <div>Target: \${orderResult.target}</div>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{color:"#ff4d6d",marginBottom:16}}>Error: {orderResult.error}</div>
-                )}
-                <button className="btn btn-ghost" style={{width:"100%"}} onClick={() => { setOrderModal(null); setOrderResult(null); }}>Close</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {closeModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
           <div className="card" style={{ width: 340, margin: 0 }}>
@@ -3176,6 +3120,62 @@ export default function ORBApp() {
           </div>
         )}
       </main>
+
+      {/* Alpaca Order Modal */}
+      {orderModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div className="card" style={{width:360,margin:0}}>
+            <div className="card-title">▶ Paper Trade — {orderModal.ticker}</div>
+            {!orderResult && !orderLoading && (() => {
+              const orbRange = orderModal.orbHigh - orderModal.orbLow;
+              const stop = orderModal.dir === "long" ? +(orderModal.orbHigh - orbRange * 0.1).toFixed(2) : +(orderModal.orbLow + orbRange * 0.1).toFixed(2);
+              const riskPerShare = Math.abs(orderModal.price - stop);
+              const shares = riskPerShare > 0 ? Math.floor(maxRisk / riskPerShare) : 1;
+              const target = orderModal.dir === "long" ? +(orderModal.price + riskPerShare * 2).toFixed(2) : +(orderModal.price - riskPerShare * 2).toFixed(2);
+              const totalRisk = +(riskPerShare * shares).toFixed(2);
+              return (
+                <div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+                    {[["Direction",orderModal.dir==="long"?"^ LONG":"v SHORT"],["Entry","\$"+orderModal.price],["Stop Loss","\$"+stop],["Target 1","\$"+target],["Shares",shares+" shares"],["Max Risk","\$"+totalRisk]].map(([l,v],i) => (
+                      <div key={i} style={{background:"#080b10",borderRadius:8,padding:"10px 12px"}}>
+                        <div style={{fontSize:10,color:"#475569",marginBottom:4}}>{l}</div>
+                        <div style={{fontSize:13,fontFamily:"'Space Mono',monospace",color:l==="Direction"?(orderModal.dir==="long"?"#00d4aa":"#ff4d6d"):l==="Stop Loss"?"#ff4d6d":l==="Target 1"?"#00d4aa":"#f0f4f8",fontWeight:700}}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{fontSize:11,color:"#475569",marginBottom:16}}>This will place a bracket order on Alpaca Paper Trading with automatic stop loss and take profit.</p>
+                  <div style={{display:"flex",gap:8}}>
+                    <button className="btn btn-primary" style={{flex:1}} onClick={() => placeOrder(orderModal)}>
+                      ▶ Execute Paper Trade
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => { setOrderModal(null); setOrderResult(null); }}>Cancel</button>
+                  </div>
+                </div>
+              );
+            })()}
+            {orderLoading && <div style={{textAlign:"center",padding:"24px 0",color:"#475569"}}>Placing order...</div>}
+            {orderResult && (
+              <div>
+                {orderResult.success ? (
+                  <div>
+                    <div style={{textAlign:"center",fontSize:32,marginBottom:12}}>✅</div>
+                    <div style={{textAlign:"center",color:"#00d4aa",fontWeight:700,marginBottom:8}}>Order Placed!</div>
+                    <div style={{background:"#080b10",borderRadius:8,padding:"12px",fontSize:11,color:"#94a3b8",marginBottom:16}}>
+                      <div>Order ID: {orderResult.order?.id?.slice(0,16)}...</div>
+                      <div>Shares: {orderResult.shares}</div>
+                      <div>Stop: \${orderResult.stop}</div>
+                      <div>Target: \${orderResult.target}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{color:"#ff4d6d",marginBottom:16}}>Error: {orderResult.error}</div>
+                )}
+                <button className="btn btn-ghost" style={{width:"100%"}} onClick={() => { setOrderModal(null); setOrderResult(null); }}>Close</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <footer className="app-footer">
         <div className="footer-inner">
