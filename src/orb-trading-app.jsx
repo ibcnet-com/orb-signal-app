@@ -994,14 +994,18 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
     async function loadAnalytics() {
       setAnalyticsLoading(true);
       try {
-        const [q, t, tk, r, s] = await Promise.all([
+        const [q, t, tk, r, s, rules, conf, matrix, patterns] = await Promise.all([
           fetch(API + "/analytics/quality").then(x => x.json()),
           fetch(API + "/analytics/timeofday").then(x => x.json()),
           fetch(API + "/analytics/tickers").then(x => x.json()),
           fetch(API + "/analytics/ranges").then(x => x.json()),
           fetch(API + "/analytics/summaries").then(x => x.json()),
+          fetch(API + "/analytics/rules").then(x => x.json()),
+          fetch(API + "/analytics/confidence").then(x => x.json()),
+          fetch(API + "/analytics/matrix").then(x => x.json()),
+          fetch(API + "/analytics/ticker-patterns").then(x => x.json()),
         ]);
-        setAnalytics({ quality: q.quality, timeofday: t.timeofday, tickers: tk.tickers, ranges: r.ranges, summaries: s.summaries });
+        setAnalytics({ quality: q.quality, timeofday: t.timeofday, tickers: tk.tickers, ranges: r.ranges, summaries: s.summaries, rules: rules.rules, confidence: conf.confidence, matrix: matrix.matrix, patterns: patterns.patterns });
       } catch(e) { console.error("analytics error:", e); }
       setAnalyticsLoading(false);
     }
@@ -1311,7 +1315,7 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
             <div className="perf-subtitle">Historical signal intelligence</div>
           </div>
           <div className="perf-toggles">
-            {[["quality","Signal Quality"],["timeofday","Time of Day"],["tickers","Ticker Scorecard"],["ranges","ORB Range"],["edge","Edge Over Time"]].map(([v,l]) => (
+            {[["quality","Signal Quality"],["timeofday","Time of Day"],["tickers","Ticker Scorecard"],["ranges","ORB Range"],["edge","Edge Over Time"],["rules","🧠 AI Rules"],["confidence","Conf Accuracy"],["matrix","Signal Matrix"],["patterns","Ticker DNA"]].map(([v,l]) => (
               <button key={v} className={"perf-toggle" + (analyticsView === v ? " active" : "")} onClick={() => setAnalyticsView(v)}>{l}</button>
             ))}
           </div>
@@ -1470,6 +1474,110 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
                     </tr>
                   ))}</tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+        {!analyticsLoading && analyticsView === "rules" && (
+          <div>
+            {(!analytics.rules || analytics.rules.length === 0) ? (
+              <div className="empty-state"><p>No AI rules logged yet — run AI Postmortem to populate</p></div>
+            ) : (
+              <div>
+                <p style={{fontSize:11,color:"#475569",marginBottom:12}}>Rules that appear most often across sessions — highest frequency = highest priority to internalize</p>
+                {analytics.rules.map((r, i) => (
+                  <div key={i} style={{background:"#080b10",border:"1px solid #1a2030",borderRadius:10,padding:"14px 16px",marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{background:"rgba(0,212,170,0.15)",color:"#00d4aa",borderRadius:6,padding:"2px 10px",fontSize:11,fontFamily:"'Space Mono',monospace",fontWeight:700}}>{r.occurrences}×</span>
+                        <span style={{fontSize:10,color:"#475569"}}>{(r.tickers||[]).join(", ")}</span>
+                      </div>
+                      <span style={{fontSize:10,color:"#2a3a55"}}>{(r.dates||[])[0]}</span>
+                    </div>
+                    <p style={{fontSize:12,color:"#e2e8f0",lineHeight:1.6}}>{r.rule}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {!analyticsLoading && analyticsView === "confidence" && (
+          <div>
+            {(!analytics.confidence || analytics.confidence.length === 0) ? (
+              <div className="empty-state"><p>No confidence data yet — run Yesterday's ORB Report to populate</p></div>
+            ) : (
+              <div>
+                <p style={{fontSize:11,color:"#475569",marginBottom:12}}>Is the confidence score actually predictive? Compares predicted vs actual outcomes.</p>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead><tr style={{borderBottom:"1px solid #1e2a3a"}}>
+                    {["Confidence","Signals","Predicted Win","Actual Win Rate","Prediction Accuracy"].map(h => <th key={h} style={{padding:"8px 10px",textAlign:"left",color:"#475569",fontSize:10,fontWeight:600,textTransform:"uppercase"}}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>{analytics.confidence.map(r => (
+                    <tr key={r.conf} style={{borderBottom:"1px solid #0f1520"}}>
+                      <td style={{padding:"10px"}}><span className={"badge " + r.conf}>{r.conf === "high" ? "High Conf" : r.conf === "med" ? "Med Conf" : "Low Conf"}</span></td>
+                      <td style={{padding:"10px",color:"#94a3b8"}}>{r.total}</td>
+                      <td style={{padding:"10px",color:"#475569"}}>{r.conf === "high" ? "Win" : r.conf === "med" ? "Win" : "Loss"}</td>
+                      <td style={{padding:"10px",color:r.actual_win_rate >= 60 ? "#00d4aa" : r.actual_win_rate >= 40 ? "#facc15" : "#ff4d6d",fontFamily:"'Space Mono',monospace"}}>{r.actual_win_rate}%</td>
+                      <td style={{padding:"10px"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{flex:1,height:6,background:"#0d1623",borderRadius:3}}>
+                            <div style={{width:r.accuracy+"%",height:"100%",background:r.accuracy>=60?"#00d4aa":r.accuracy>=40?"#facc15":"#ff4d6d",borderRadius:3}}/>
+                          </div>
+                          <span style={{color:r.accuracy>=60?"#00d4aa":r.accuracy>=40?"#facc15":"#ff4d6d",fontFamily:"'Space Mono',monospace",fontSize:11}}>{r.accuracy}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+        {!analyticsLoading && analyticsView === "matrix" && (
+          <div>
+            {(!analytics.matrix || analytics.matrix.length === 0) ? (
+              <div className="empty-state"><p>No matrix data yet — needs multiple days of reports</p></div>
+            ) : (
+              <div>
+                <p style={{fontSize:11,color:"#475569",marginBottom:12}}>Which combination of confidence + range size + SPY trend produces the best outcomes?</p>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead><tr style={{borderBottom:"1px solid #1e2a3a"}}>
+                    {["Conf","Range","SPY","Signals","Win Rate","Avg P&L"].map(h => <th key={h} style={{padding:"8px 10px",textAlign:"left",color:"#475569",fontSize:10,fontWeight:600,textTransform:"uppercase"}}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>{analytics.matrix.map((r,i) => (
+                    <tr key={i} style={{borderBottom:"1px solid #0f1520",background:r.win_rate>=70?"rgba(0,212,170,0.03)":r.win_rate<=30?"rgba(255,77,109,0.03)":"transparent"}}>
+                      <td style={{padding:"10px"}}><span className={"badge " + r.conf}>{r.conf}</span></td>
+                      <td style={{padding:"10px",color:"#94a3b8"}}>{r.range_size}</td>
+                      <td style={{padding:"10px",color:r.spy_trend==="up"?"#00d4aa":r.spy_trend==="down"?"#ff4d6d":"#475569"}}>{r.spy_trend}</td>
+                      <td style={{padding:"10px",color:"#94a3b8"}}>{r.signals}</td>
+                      <td style={{padding:"10px",color:r.win_rate>=60?"#00d4aa":r.win_rate>=40?"#facc15":"#ff4d6d",fontFamily:"'Space Mono',monospace",fontWeight:700}}>{r.win_rate}%</td>
+                      <td style={{padding:"10px",color:r.avg_pnl>=0?"#00d4aa":"#ff4d6d",fontFamily:"'Space Mono',monospace"}}>{r.avg_pnl>=0?"+":""}\${r.avg_pnl}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+        {!analyticsLoading && analyticsView === "patterns" && (
+          <div>
+            {(!analytics.patterns || analytics.patterns.length === 0) ? (
+              <div className="empty-state"><p>No ticker patterns yet — run AI Postmortem multiple times to populate</p></div>
+            ) : (
+              <div>
+                <p style={{fontSize:11,color:"#475569",marginBottom:12}}>Recurring AI diagnoses per ticker — reveals systematic strengths and weaknesses.</p>
+                {analytics.patterns.map((p,i) => (
+                  <div key={i} style={{background:"#080b10",border:"1px solid #1a2030",borderRadius:10,padding:"14px 16px",marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <span style={{fontFamily:"'Space Mono',monospace",fontWeight:700,fontSize:14,color:"#f0f4f8"}}>{p.ticker}</span>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <span style={{fontSize:10,color:"#475569"}}>{p.total_analyses} analyses</span>
+                        <span style={{fontSize:10,color:"#2a3a55"}}>Last: {new Date(p.last_analyzed).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+                      </div>
+                    </div>
+                    <div style={{fontSize:11,color:"#94a3b8",lineHeight:1.7,maxHeight:80,overflow:"hidden"}}>{(p.all_rules||"").split(" | ").slice(0,3).join(" • ")}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

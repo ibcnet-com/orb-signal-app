@@ -31,6 +31,54 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    // AI Postmortem logs
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_postmortem_logs (
+        id SERIAL PRIMARY KEY,
+        report_date DATE NOT NULL,
+        ticker VARCHAR(10) NOT NULL,
+        outcome VARCHAR(10),
+        diagnosis TEXT,
+        rule TEXT,
+        session_summary TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    // Signal events log
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS signal_events (
+        id SERIAL PRIMARY KEY,
+        fired_at TIMESTAMP NOT NULL,
+        ticker VARCHAR(10) NOT NULL,
+        dir VARCHAR(10),
+        conf VARCHAR(10),
+        price NUMERIC,
+        orb_high NUMERIC,
+        orb_low NUMERIC,
+        orb_range_pct NUMERIC,
+        entry_time VARCHAR(20),
+        spy_trend VARCHAR(20),
+        vol_pct VARCHAR(20),
+        invalidated_at TIMESTAMP,
+        invalidation_reason TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    // Confidence accuracy log
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS confidence_accuracy (
+        id SERIAL PRIMARY KEY,
+        report_date DATE NOT NULL,
+        ticker VARCHAR(10) NOT NULL,
+        conf VARCHAR(10),
+        conf_score INTEGER,
+        predicted_outcome VARCHAR(10),
+        actual_outcome VARCHAR(10),
+        correct BOOLEAN,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS report_summaries (
         id SERIAL PRIMARY KEY,
@@ -277,6 +325,49 @@ function saveTrades(trades) {
   try { writeFileSync(TRADES_FILE, JSON.stringify(trades, null, 2)); } catch {}
 }
 
+// Save AI postmortem results
+async function savePostmortem(date, trades, sessionSummary) {
+  try {
+    for (const t of (trades || [])) {
+      await pool.query(
+        `INSERT INTO ai_postmortem_logs (report_date, ticker, outcome, diagnosis, rule, session_summary)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [date, t.ticker, t.outcome, t.diagnosis, t.rule, sessionSummary]
+      );
+    }
+    console.log("Saved postmortem for", date, "- trades:", (trades||[]).length);
+  } catch(e) { console.error("savePostmortem error:", e.message); }
+}
+
+// Save signal event when it fires
+async function saveSignalEvent(signal, spyTrend) {
+  try {
+    await pool.query(
+      `INSERT INTO signal_events (fired_at, ticker, dir, conf, price, orb_high, orb_low, orb_range_pct, entry_time, spy_trend, vol_pct)
+       VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [signal.ticker, signal.dir, signal.conf, signal.price, signal.orbHigh, signal.orbLow,
+       signal.orbRangePct, signal.time, spyTrend?.trend || "unknown", signal.vol]
+    );
+  } catch(e) { console.error("saveSignalEvent error:", e.message); }
+}
+
+// Save confidence accuracy after daily report
+async function saveConfidenceAccuracy(date, results) {
+  try {
+    for (const r of (results || [])) {
+      if (!r.dir || r.dir === "none") continue;
+      const confScore = r.conf === "high" ? 85 : r.conf === "med" ? 65 : 40;
+      const predicted = confScore >= 70 ? "win" : "loss";
+      const correct = predicted === r.outcome;
+      await pool.query(
+        `INSERT INTO confidence_accuracy (report_date, ticker, conf, conf_score, predicted_outcome, actual_outcome, correct)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [date, r.ticker, r.conf, confScore, predicted, r.outcome, correct]
+      );
+    }
+  } catch(e) { console.error("saveConfidenceAccuracy error:", e.message); }
+}
+
 // Routes
 app.get("/scan", async (req, res) => {
   const tickers = (req.query.tickers || "SPY,QQQ,AAPL,TSLA").split(",");
@@ -481,7 +572,10 @@ app.get("/yesterday", async (req, res) => {
   }));
   const date = results.find(r => r.status === "fulfilled" && r.value.date)?.value?.date || null;
   const finalResults = results.map(r => r.status === "fulfilled" ? r.value : { ticker: "?", dir: "none", error: r.reason?.message });
-  if (date) saveReport(date, finalResults).catch(() => {});
+  if (date) {
+    saveReport(date, finalResults).catch(() => {});
+    saveConfidenceAccuracy(date, finalResults).catch(() => {});
+  }
   res.json({ date, results: finalResults });
 });
 
@@ -588,6 +682,80 @@ app.get("/analytics/ranges", async (req, res) => {
       GROUP BY range_bucket ORDER BY win_rate DESC
     `);
     res.json({ ranges: result.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Intelligence: repeated rules from AI postmortem
+app.get("/analytics/rules", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT rule,
+        COUNT(*) as occurrences,
+        array_agg(DISTINCT ticker) as tickers,
+        array_agg(DISTINCT report_date::text ORDER BY report_date::text DESC) as dates
+      FROM ai_postmortem_logs
+      WHERE rule IS NOT NULL AND rule != ''
+      GROUP BY rule
+      ORDER BY occurrences DESC
+      LIMIT 20
+    `);
+    res.json({ rules: result.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Intelligence: confidence score accuracy
+app.get("/analytics/confidence", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT conf,
+        COUNT(*) as total,
+        SUM(CASE WHEN correct THEN 1 ELSE 0 END) as correct_predictions,
+        ROUND(SUM(CASE WHEN correct THEN 1 ELSE 0 END)::numeric / COUNT(*) * 100, 1) as accuracy,
+        SUM(CASE WHEN actual_outcome='win' THEN 1 ELSE 0 END) as actual_wins,
+        ROUND(SUM(CASE WHEN actual_outcome='win' THEN 1 ELSE 0 END)::numeric / COUNT(*) * 100, 1) as actual_win_rate
+      FROM confidence_accuracy
+      GROUP BY conf ORDER BY actual_win_rate DESC
+    `);
+    res.json({ confidence: result.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Intelligence: signal-to-outcome matrix
+app.get("/analytics/matrix", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        conf,
+        CASE WHEN orb_range_pct < 0.2 THEN 'tiny' WHEN orb_range_pct < 0.5 THEN 'small' WHEN orb_range_pct < 1 THEN 'medium' ELSE 'large' END as range_size,
+        spy_trend,
+        COUNT(*) as signals,
+        SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END) as wins,
+        ROUND(SUM(CASE WHEN outcome='win' THEN 1 ELSE 0 END)::numeric / COUNT(*) * 100, 1) as win_rate,
+        ROUND(AVG(pnl)::numeric, 2) as avg_pnl
+      FROM daily_reports
+      WHERE conf IS NOT NULL AND orb_range_pct IS NOT NULL
+      GROUP BY conf, range_size, spy_trend
+      HAVING COUNT(*) >= 2
+      ORDER BY win_rate DESC
+    `);
+    res.json({ matrix: result.rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Intelligence: ticker AI diagnosis patterns
+app.get("/analytics/ticker-patterns", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ticker,
+        COUNT(*) as total_analyses,
+        array_agg(DISTINCT outcome) as outcomes,
+        string_agg(rule, ' | ' ORDER BY created_at DESC) as all_rules,
+        MAX(created_at) as last_analyzed
+      FROM ai_postmortem_logs
+      GROUP BY ticker
+      ORDER BY total_analyses DESC
+    `);
+    res.json({ patterns: result.rows });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
