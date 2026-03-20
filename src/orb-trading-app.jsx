@@ -1008,12 +1008,26 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
     loadAnalytics();
   }, []);
 
+  // Auto-fetch yesterday report on mount
+  useEffect(() => {
+    if (!yesterdayReport && !yesterdayLoading) {
+      fetchYesterdayReport();
+    }
+  }, []);
+
   // Auto-analyze when yesterdayReport loads
   useEffect(() => {
     if (yesterdayReport?.results?.length && !postmortem && !pmLoading) {
       autoAnalyze(yesterdayReport);
     }
   }, [yesterdayReport]);
+
+  useEffect(() => {
+    // Auto-load yesterday report on mount if not already loaded
+    if (!yesterdayReport && !yesterdayLoading) {
+      fetchYesterdayReport();
+    }
+  }, []);
 
   const closed = tradeLog.filter(t => t.outcome !== "open" && t.pnl_dollar != null);
   let running = 0;
@@ -1115,7 +1129,10 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
         {yesterdayLoading && <div style={{ color: "#475569", fontSize: 12, padding: "16px 0", textAlign: "center" }}>Fetching...</div>}
         {!yesterdayLoading && yesterdayReport?.error && <div style={{ color: "#ff4d6d", fontSize: 12 }}>Error: {yesterdayReport.error}</div>}
         {!yesterdayLoading && ydayResults.length === 0 && !yesterdayReport?.error && (
-          <div className="empty-state" style={{ padding: "24px 0" }}><p>Click Refresh to load</p></div>
+          <div className="empty-state" style={{ padding: "24px 0" }}>
+            <p>Click Refresh to load</p>
+            {yesterdayReport && <p style={{fontSize:10,color:"#2a3a55",marginTop:8}}>Last fetch: {JSON.stringify(yesterdayReport).slice(0,100)}</p>}
+          </div>
         )}
         {!yesterdayLoading && ydayResults.length > 0 && (
           <div>
