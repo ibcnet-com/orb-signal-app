@@ -1,3 +1,17 @@
+## v2.8.0 — 2026-03-19
+- Alpaca Paper Trading: bracket orders, account bar, auto-sync fills
+- Algorithm Intelligence: AI Rules tracker, Confidence Accuracy, Signal Matrix, Ticker DNA
+- Signal auto-removal: price reversal, 3:30pm cutoff, no momentum triggers
+- Market hours check with Force Override button
+- Smart report title: Today's vs Yesterday's based on market close time
+- What's New cards moved to left column in How It Works
+- Mobile nav buttons +20% for iPhone 17 Pro
+- Signal stale timer (configurable, default 20 min)
+- King David's Reverse Report row-by-row analysis
+- Performance Analytics: 5 views including Edge Over Time chart
+- PostgreSQL history: ai_postmortem_logs, signal_events, confidence_accuracy tables
+- Footer version updated to v2.8.0
+
 # ORBsignal Changelog
 
 ## v2.6.0 — 2026-03-17

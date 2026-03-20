@@ -3193,7 +3193,7 @@ export default function ORBApp() {
             </div>
             <div className="footer-version">
               <a href="https://github.com/ibcnet-com/orb-signal-app/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">
-                v2.6.0
+                v2.8.0
               </a>
             </div>
           </div>
