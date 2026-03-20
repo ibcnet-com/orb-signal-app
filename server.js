@@ -759,6 +759,147 @@ app.get("/analytics/ticker-patterns", async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Alpaca Paper Trading Integration
+const ALPACA_KEY    = process.env.ALPACA_API_KEY;
+const ALPACA_SECRET = process.env.ALPACA_API_SECRET;
+const ALPACA_BASE   = "https://paper-api.alpaca.markets";
+
+async function alpacaFetch(path, method = "GET", body = null) {
+  const opts = {
+    method,
+    headers: {
+      "APCA-API-KEY-ID": ALPACA_KEY,
+      "APCA-API-SECRET-KEY": ALPACA_SECRET,
+      "Content-Type": "application/json",
+    },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(ALPACA_BASE + path, opts);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error("Alpaca " + res.status + ": " + err);
+  }
+  return res.json();
+}
+
+// Place a bracket order (entry + stop + target)
+async function placeORBOrder(signal, shares, stopPrice, targetPrice) {
+  const side = signal.dir === "long" ? "buy" : "sell";
+  const order = {
+    symbol: signal.ticker,
+    qty: shares,
+    side,
+    type: "market",
+    time_in_force: "day",
+    order_class: "bracket",
+    stop_loss: { stop_price: stopPrice.toFixed(2) },
+    take_profit: { limit_price: targetPrice.toFixed(2) },
+  };
+  return alpacaFetch("/v2/orders", "POST", order);
+}
+
+// GET /alpaca/account
+app.get("/alpaca/account", async (req, res) => {
+  try {
+    const account = await alpacaFetch("/v2/account");
+    res.json({ account });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /alpaca/positions
+app.get("/alpaca/positions", async (req, res) => {
+  try {
+    const positions = await alpacaFetch("/v2/positions");
+    res.json({ positions });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /alpaca/orders
+app.get("/alpaca/orders", async (req, res) => {
+  try {
+    const orders = await alpacaFetch("/v2/orders?status=all&limit=50");
+    res.json({ orders });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /alpaca/order - place bracket order from signal
+app.post("/alpaca/order", async (req, res) => {
+  try {
+    const { signal, shares, stopPrice, targetPrice } = req.body;
+    if (!ALPACA_KEY) return res.status(500).json({ error: "ALPACA_API_KEY not set" });
+    if (!signal || !shares) return res.status(400).json({ error: "Missing signal or shares" });
+
+    const order = await placeORBOrder(signal, shares, stopPrice, targetPrice);
+
+    // Also log to our trades DB
+    const trades = loadTrades();
+    const trade = {
+      id: Date.now(),
+      ticker: signal.ticker,
+      dir: signal.dir,
+      entry_price: signal.price,
+      confidence: signal.conf,
+      volume: signal.vol,
+      reason: signal.reason,
+      orb_high: signal.orbHigh,
+      orb_low: signal.orbLow,
+      outcome: "open",
+      logged_at: new Date().toISOString(),
+      alpaca_order_id: order.id,
+      shares,
+      stop_price: stopPrice,
+      target_price: targetPrice,
+      source: "alpaca_paper",
+    };
+    trades.unshift(trade);
+    saveTrades(trades);
+
+    res.json({ ok: true, order, trade });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /alpaca/order/:id - cancel order
+app.delete("/alpaca/order/:id", async (req, res) => {
+  try {
+    await alpacaFetch("/v2/orders/" + req.params.id, "DELETE");
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /alpaca/close/:symbol - close position
+app.post("/alpaca/close/:symbol", async (req, res) => {
+  try {
+    const result = await alpacaFetch("/v2/positions/" + req.params.symbol, "DELETE");
+    res.json({ ok: true, result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /alpaca/sync - sync closed orders back to our trade log
+app.get("/alpaca/sync", async (req, res) => {
+  try {
+    const orders = await alpacaFetch("/v2/orders?status=closed&limit=50");
+    const trades = loadTrades();
+    let synced = 0;
+    for (const order of orders) {
+      const trade = trades.find(t => t.alpaca_order_id === order.id);
+      if (trade && trade.outcome === "open" && order.status === "filled") {
+        const fillPrice = parseFloat(order.filled_avg_price);
+        const pnl = trade.dir === "long"
+          ? (fillPrice - trade.entry_price) * trade.shares
+          : (trade.entry_price - fillPrice) * trade.shares;
+        trade.exit_price = fillPrice;
+        trade.outcome = pnl > 0 ? "win" : "loss";
+        trade.pnl_dollar = +pnl.toFixed(2);
+        trade.pnl_pct = +((pnl / (trade.entry_price * trade.shares)) * 100).toFixed(2);
+        trade.closed_at = order.filled_at;
+        synced++;
+      }
+    }
+    if (synced > 0) saveTrades(trades);
+    res.json({ ok: true, synced });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.listen(PORT, () => {
   console.log("ORBsignal server running on port " + PORT);
 });

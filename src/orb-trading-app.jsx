@@ -1627,6 +1627,62 @@ function TradeLogTab({ tradeLog, tradeStats, yesterdayReport, yesterdayLoading, 
         )}
       </div>
 
+      {/* Alpaca Order Modal */}
+      {orderModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div className="card" style={{width:360,margin:0}}>
+            <div className="card-title">▶ Paper Trade — {orderModal.ticker}</div>
+            {!orderResult && !orderLoading && (() => {
+              const orbRange = orderModal.orbHigh - orderModal.orbLow;
+              const stop = orderModal.dir === "long" ? +(orderModal.orbHigh - orbRange * 0.1).toFixed(2) : +(orderModal.orbLow + orbRange * 0.1).toFixed(2);
+              const riskPerShare = Math.abs(orderModal.price - stop);
+              const shares = riskPerShare > 0 ? Math.floor(maxRisk / riskPerShare) : 1;
+              const target = orderModal.dir === "long" ? +(orderModal.price + riskPerShare * 2).toFixed(2) : +(orderModal.price - riskPerShare * 2).toFixed(2);
+              const totalRisk = +(riskPerShare * shares).toFixed(2);
+              return (
+                <div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+                    {[["Direction",orderModal.dir==="long"?"^ LONG":"v SHORT"],["Entry","\$"+orderModal.price],["Stop Loss","\$"+stop],["Target 1","\$"+target],["Shares",shares+" shares"],["Max Risk","\$"+totalRisk]].map(([l,v],i) => (
+                      <div key={i} style={{background:"#080b10",borderRadius:8,padding:"10px 12px"}}>
+                        <div style={{fontSize:10,color:"#475569",marginBottom:4}}>{l}</div>
+                        <div style={{fontSize:13,fontFamily:"'Space Mono',monospace",color:l==="Direction"?(orderModal.dir==="long"?"#00d4aa":"#ff4d6d"):l==="Stop Loss"?"#ff4d6d":l==="Target 1"?"#00d4aa":"#f0f4f8",fontWeight:700}}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{fontSize:11,color:"#475569",marginBottom:16}}>This will place a bracket order on Alpaca Paper Trading with automatic stop loss and take profit.</p>
+                  <div style={{display:"flex",gap:8}}>
+                    <button className="btn btn-primary" style={{flex:1}} onClick={() => placeOrder(orderModal)}>
+                      ▶ Execute Paper Trade
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => { setOrderModal(null); setOrderResult(null); }}>Cancel</button>
+                  </div>
+                </div>
+              );
+            })()}
+            {orderLoading && <div style={{textAlign:"center",padding:"24px 0",color:"#475569"}}>Placing order...</div>}
+            {orderResult && (
+              <div>
+                {orderResult.success ? (
+                  <div>
+                    <div style={{textAlign:"center",fontSize:32,marginBottom:12}}>✅</div>
+                    <div style={{textAlign:"center",color:"#00d4aa",fontWeight:700,marginBottom:8}}>Order Placed!</div>
+                    <div style={{background:"#080b10",borderRadius:8,padding:"12px",fontSize:11,color:"#94a3b8",marginBottom:16}}>
+                      <div>Order ID: {orderResult.order?.id?.slice(0,16)}...</div>
+                      <div>Shares: {orderResult.shares}</div>
+                      <div>Stop: \${orderResult.stop}</div>
+                      <div>Target: \${orderResult.target}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{color:"#ff4d6d",marginBottom:16}}>Error: {orderResult.error}</div>
+                )}
+                <button className="btn btn-ghost" style={{width:"100%"}} onClick={() => { setOrderModal(null); setOrderResult(null); }}>Close</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {closeModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
           <div className="card" style={{ width: 340, margin: 0 }}>
@@ -1723,6 +1779,11 @@ export default function ORBApp() {
   const [marketMessage, setMarketMessage] = useState(null);
   const [forceOverride, setForceOverride] = useState(false);
   const [invalidatedToast, setInvalidatedToast] = useState(null);
+  const [alpacaAccount, setAlpacaAccount] = useState(null);
+  const [alpacaPositions, setAlpacaPositions] = useState([]);
+  const [orderModal, setOrderModal] = useState(null); // signal being ordered
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderResult, setOrderResult] = useState(null);
   const [orbWindow, setOrbWindow] = useState(() => loadFromStorage("orb_window", 15));
   const [staleMinutes, setStaleMinutes] = useState(() => loadFromStorage("orb_staleminutes", 20));
   const [volFilter, setVolFilter] = useState(() => loadFromStorage("orb_volfilter", 150));
@@ -1830,6 +1891,47 @@ export default function ORBApp() {
   }
 
   // Fetch live quotes for header bar
+  async function fetchAlpacaAccount() {
+    try {
+      const r = await fetch(`${API}/alpaca/account`);
+      const d = await r.json();
+      if (d.account) setAlpacaAccount(d.account);
+      const p = await fetch(`${API}/alpaca/positions`);
+      const pd = await p.json();
+      setAlpacaPositions(pd.positions || []);
+    } catch(e) { console.error("Alpaca fetch error:", e.message); }
+  }
+
+  async function placeOrder(signal) {
+    setOrderLoading(true);
+    setOrderResult(null);
+    try {
+      const orbRange = signal.orbHigh - signal.orbLow;
+      const stop = signal.dir === "long"
+        ? +(signal.orbHigh - orbRange * 0.1).toFixed(2)
+        : +(signal.orbLow + orbRange * 0.1).toFixed(2);
+      const riskPerShare = Math.abs(signal.price - stop);
+      const shares = riskPerShare > 0 ? Math.floor(maxRisk / riskPerShare) : 1;
+      const target = signal.dir === "long"
+        ? +(signal.price + riskPerShare * 2).toFixed(2)
+        : +(signal.price - riskPerShare * 2).toFixed(2);
+
+      const r = await fetch(`${API}/alpaca/order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signal, shares, stopPrice: stop, targetPrice: target }),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setOrderResult({ success: true, order: d.order, shares, stop, target });
+      fetchTradeLog();
+      fetchAlpacaAccount();
+    } catch(e) {
+      setOrderResult({ success: false, error: e.message });
+    }
+    setOrderLoading(false);
+  }
+
   function checkSignalValidity(currentSignals, currentQuotes) {
     if (!currentSignals || currentSignals.length === 0) return;
     const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
@@ -1993,6 +2095,8 @@ export default function ORBApp() {
     fetchTradeLog();
     fetchFutures();
     const quoteInt = setInterval(fetchQuotes, 30000);
+    fetchAlpacaAccount();
+    const alpacaInt = setInterval(() => { fetchAlpacaAccount(); fetch(`${API}/alpaca/sync`); }, 60000);
     const scanInt    = setInterval(runScan, 60000);
     const logInt     = setInterval(fetchTradeLog, 60000);
     const futuresInt = setInterval(fetchFutures, 60000);
@@ -2428,6 +2532,11 @@ export default function ORBApp() {
               style={{fontSize:9, padding:"6px 12px"}}>
               + Log
             </button>
+            <button className="btn btn-primary"
+              onClick={() => setOrderModal(s)}
+              style={{fontSize:9, padding:"6px 12px", background:"linear-gradient(135deg,#00d4aa,#0099ff)"}}>
+              ▶ Paper Trade
+            </button>
             <button className={`action-btn ${s.dir === "long" ? "buy" : "sell"}`}>
               {s.dir === "long" ? "^ BUY" : "v SELL"} {s.ticker}
             </button>
@@ -2748,7 +2857,19 @@ export default function ORBApp() {
                   <button onClick={() => { setForceOverride(false); setMarketClosed(true); }} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:11}}>✕ Cancel</button>
                 </div>
               )}
-              {invalidatedToast && (
+              {alpacaAccount && (
+          <div style={{display:"flex",gap:16,flexWrap:"wrap",padding:"10px 16px",background:"#080b10",border:"1px solid #1a2030",borderRadius:10,marginBottom:16,fontSize:12,alignItems:"center"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{width:8,height:8,borderRadius:"50%",background:"#00d4aa",display:"inline-block"}}></span>
+              <span style={{color:"#475569"}}>Alpaca Paper</span>
+            </div>
+            <div><span style={{color:"#475569"}}>Equity: </span><span style={{color:"#f0f4f8",fontFamily:"'Space Mono',monospace",fontWeight:700}}>${parseFloat(alpacaAccount.equity||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+            <div><span style={{color:"#475569"}}>Cash: </span><span style={{color:"#f0f4f8",fontFamily:"'Space Mono',monospace"}}>${parseFloat(alpacaAccount.cash||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+            <div><span style={{color:"#475569"}}>P&L Today: </span><span style={{color:parseFloat(alpacaAccount.equity||0)-parseFloat(alpacaAccount.last_equity||0)>=0?"#00d4aa":"#ff4d6d",fontFamily:"'Space Mono',monospace"}}>{parseFloat(alpacaAccount.equity||0)-parseFloat(alpacaAccount.last_equity||0)>=0?"+":""}\${(parseFloat(alpacaAccount.equity||0)-parseFloat(alpacaAccount.last_equity||0)).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+            {alpacaPositions.length > 0 && <div><span style={{color:"#facc15"}}>{alpacaPositions.length} open position{alpacaPositions.length>1?"s":""}</span></div>}
+          </div>
+        )}
+        {invalidatedToast && (
                 <div style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:"#0d1623",border:"1px solid #ff4d6d44",borderRadius:10,padding:"12px 20px",fontSize:12,color:"#ff4d6d",zIndex:500,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",whiteSpace:"nowrap"}}>
                   🚫 {invalidatedToast}
                 </div>
